@@ -13,7 +13,7 @@ export async function getCourses() {
     .select('*')
     .order('timecreated', { ascending: false });
   if (error) throw error;
-  return data || [];
+  return (data || []).map(applyJsonParsing);
 }
 
 export async function getCourse(id) {
@@ -23,35 +23,61 @@ export async function getCourse(id) {
     .eq('id', String(id))
     .single();
   if (error && error.code !== 'PGRST116') throw error;
-  return data || null;
+  return data ? applyJsonParsing(data) : null;
+}
+
+function applyJsonParsing(item) {
+  if (!item) return item;
+  const result = { ...item };
+  ['outline_json', 'content_json', 'questions_json'].forEach(field => {
+    if (typeof result[field] === 'string') {
+      try {
+        result[field] = JSON.parse(result[field]);
+      } catch (e) { }
+    }
+  });
+  return result;
+}
+
+function prepareJsonForSave(item) {
+  if (!item) return item;
+  const result = { ...item };
+  ['outline_json', 'content_json', 'questions_json'].forEach(field => {
+    if (result[field] && typeof result[field] === 'string') {
+      try {
+        result[field] = JSON.parse(result[field]);
+      } catch (e) { }
+    }
+  });
+  return result;
 }
 
 export async function saveCourse(course) {
-  const record = { ...course, timemodified: Date.now() };
+  const record = prepareJsonForSave({ ...course, timemodified: Date.now() });
   const { data, error } = await supabase
     .from('courses')
     .upsert(record)
     .select()
     .single();
   if (error) throw error;
-  return data;
+  return applyJsonParsing(data);
 }
 
 export async function addCourse(course) {
   const id = String(Date.now());
-  const record = {
+  const record = prepareJsonForSave({
     id,
     ...course,
     timecreated: Date.now(),
     timemodified: Date.now()
-  };
+  });
   const { data, error } = await supabase
     .from('courses')
     .insert([record])
     .select()
     .single();
   if (error) throw error;
-  return data;
+  return applyJsonParsing(data);
 }
 
 export async function deleteCourse(id) {
@@ -69,7 +95,7 @@ export async function getExams() {
     .select('*')
     .order('timecreated', { ascending: false });
   if (error) throw error;
-  return data || [];
+  return (data || []).map(applyJsonParsing);
 }
 
 export async function getExam(id) {
@@ -79,35 +105,35 @@ export async function getExam(id) {
     .eq('id', String(id))
     .single();
   if (error && error.code !== 'PGRST116') throw error;
-  return data || null;
+  return data ? applyJsonParsing(data) : null;
 }
 
 export async function addExam(exam) {
   const id = String(Date.now());
-  const record = {
+  const record = prepareJsonForSave({
     id,
     ...exam,
     timecreated: Date.now(),
     timemodified: Date.now()
-  };
+  });
   const { data, error } = await supabase
     .from('exams')
     .insert([record])
     .select()
     .single();
   if (error) throw error;
-  return data;
+  return applyJsonParsing(data);
 }
 
 export async function saveExam(exam) {
-  const record = { ...exam, timemodified: Date.now() };
+  const record = prepareJsonForSave({ ...exam, timemodified: Date.now() });
   const { data, error } = await supabase
     .from('exams')
     .upsert(record)
     .select()
     .single();
   if (error) throw error;
-  return data;
+  return applyJsonParsing(data);
 }
 
 export async function deleteExam(id) {
