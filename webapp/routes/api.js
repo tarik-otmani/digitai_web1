@@ -183,6 +183,7 @@ apiRouter.post('/courses/confirm-generation/:id', async (req, res) => {
     course.status = 'generating';
     course.generation_progress = `0/${sections.length}`;
     await store.saveCourse(course);
+    console.log(`Started generation for course ${course.id}. Total sections: ${sections.length}`);
 
     // Run section generation in background so client can poll progress
     const courseId = course.id;
@@ -226,11 +227,15 @@ apiRouter.post('/courses/confirm-generation/:id', async (req, res) => {
         await store.saveCourse(current);
       }
       current = await store.getCourse(courseId);
-      if (!current) return;
+      if (!current) {
+        console.error(`Course ${courseId} lost during generation!`);
+        return;
+      }
       current.status = 'generated';
-      current.content_json = JSON.stringify({ outline, sections: sectionsContent });
+      current.content_json = { outline, sections: sectionsContent };
       current.generation_progress = `${sections.length}/${sections.length}`;
       await store.saveCourse(current);
+      console.log(`Finished generation for course ${courseId}.`);
     };
     setImmediate(runGeneration);
 
@@ -331,7 +336,7 @@ apiRouter.post('/courses/:id/regenerate-section', async (req, res) => {
     let data = { outline: {}, sections: [] };
     try {
       data = typeof course.content_json === 'string' ? JSON.parse(course.content_json) : course.content_json;
-    } catch {}
+    } catch { }
     const sections = data.sections || [];
     if (idx >= sections.length) return res.status(400).json({ success: false, error: 'Section index out of range' });
     const courseTitle = data.outline?.title || course.topic || 'Course';
@@ -432,8 +437,9 @@ apiRouter.post('/exams/generate', async (req, res) => {
       status: 'generated',
       num_questions: questions.length,
       difficulty: difficulty || 'mixed',
-      questions_json: JSON.stringify(questions),
+      questions_json: questions,
     });
+    console.log(`Generated exam ${exam.id} for course ${course_ref_id}`);
     res.json({
       success: true,
       recordid: exam.id,
@@ -477,7 +483,7 @@ apiRouter.post('/exams/:id/regenerate-question', async (req, res) => {
     try {
       questions = typeof exam.questions_json === 'string' ? JSON.parse(exam.questions_json) : exam.questions_json;
       if (!Array.isArray(questions)) questions = [];
-    } catch {}
+    } catch { }
     if (idx >= questions.length) return res.status(400).json({ success: false, error: 'Question index out of range' });
 
     const course = await store.getCourse(exam.course_ref_id);
