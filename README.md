@@ -9,9 +9,12 @@ Web app for generating courses and exams with AI (Gemini).
 cd webapp && npm install
 cd ../new-frontend && npm install
 
-# 2. Configure (optional)
+# 2. Configure
 cp webapp/.env.example webapp/.env
-# Edit webapp/.env: GEMINI_API_KEY, JWT_SECRET
+# Edit webapp/.env: GEMINI_API_KEY, JWT_SECRET, SUPABASE_URL, SUPABASE_ANON_KEY
+
+# 3. Setup Database (Supabase)
+# Run the contents of supabase_schema.sql in your Supabase SQL Editor.
 
 # 3. Build frontend
 cd new-frontend && npm run build
