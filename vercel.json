@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "installCommand": "npm install && cd webapp && npm install && cd ../new-frontend && npm install",
+  "framework": null,
+  "env": {
+    "DATA_DIR": "/tmp/digitai-data",
+    "UPLOAD_DIR": "/tmp/digitai-uploads"
+  }
+}

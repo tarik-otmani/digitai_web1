@@ -1,0 +1,10 @@
+{
+  "name": "digitai-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "cd new-frontend && npm install && npm run build",
+    "dev": "cd webapp && npm run dev",
+    "start": "cd webapp && node server.js"
+  }
+}
