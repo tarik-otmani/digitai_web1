@@ -1,5 +1,5 @@
 # DigitAI
-
+this is from local 
 Web app for generating courses and exams with AI (Gemini).
 
 ## Quick Start
