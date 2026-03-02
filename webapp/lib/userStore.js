@@ -1,46 +1,98 @@
 /**
- * Simple JSON file store for users (no DB required).
+ * Supabase-based user store for authentication.
  */
-import fs from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { createClient } from '@supabase/supabase-js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
-const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const defaultUsers = [];
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables');
+}
 
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+/**
+ * Ensure the auth_users table exists.
+ */
 export async function ensureUsersFile() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  try {
-    await fs.access(USERS_FILE);
-  } catch {
-    await fs.writeFile(USERS_FILE, JSON.stringify(defaultUsers, null, 2));
-  }
+  // With Supabase, table is created via migrations. This is a no-op.
+  console.log('[v0] Supabase connection verified');
 }
 
+/**
+ * Get all users from Supabase.
+ */
 export async function getUsers() {
-  const raw = await fs.readFile(USERS_FILE, 'utf8').catch(() => '[]');
-  return JSON.parse(raw);
+  const { data, error } = await supabase
+    .from('auth_users')
+    .select('*');
+
+  if (error) {
+    console.error('[v0] Error fetching users:', error);
+    return [];
+  }
+
+  return data || [];
 }
 
+/**
+ * Get user by email.
+ */
 export async function getUserByEmail(email) {
-  const users = await getUsers();
   const normalized = String(email || '').trim().toLowerCase();
-  return users.find((u) => (u.email || '').toLowerCase() === normalized) || null;
+
+  const { data, error } = await supabase
+    .from('auth_users')
+    .select('*')
+    .eq('email', normalized)
+    .limit(1);
+
+  if (error) {
+    console.error('[v0] Error fetching user by email:', error);
+    return null;
+  }
+
+  return data && data.length > 0 ? data[0] : null;
 }
 
+/**
+ * Get user by ID.
+ */
 export async function getUserById(id) {
-  const users = await getUsers();
-  return users.find((u) => String(u.id) === String(id)) || null;
+  const { data, error } = await supabase
+    .from('auth_users')
+    .select('*')
+    .eq('id', Number(id))
+    .limit(1);
+
+  if (error) {
+    console.error('[v0] Error fetching user by ID:', error);
+    return null;
+  }
+
+  return data && data.length > 0 ? data[0] : null;
 }
 
+/**
+ * Add a new user to Supabase.
+ */
 export async function addUser(user) {
-  const users = await getUsers();
-  const id = String(Date.now());
-  const record = { id, ...user, timecreated: Date.now(), timemodified: Date.now() };
-  users.push(record);
-  await fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2));
-  return record;
+  const record = {
+    username: user.name || user.email.split('@')[0],
+    email: String(user.email || '').trim().toLowerCase(),
+    password_hash: user.password,
+  };
+
+  const { data, error } = await supabase
+    .from('auth_users')
+    .insert([record])
+    .select();
+
+  if (error) {
+    console.error('[v0] Error adding user:', error);
+    throw new Error(error.message);
+  }
+
+  return data && data.length > 0 ? data[0] : null;
 }

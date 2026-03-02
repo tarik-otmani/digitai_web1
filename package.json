@@ -6,5 +6,9 @@
     "build": "cd new-frontend && npm install && npm run build",
     "dev": "cd webapp && npm run dev",
     "start": "cd webapp && node server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.98.0",
+    "dotenv": "^17.3.1"
   }
 }
