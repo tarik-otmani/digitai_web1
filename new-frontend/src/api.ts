@@ -63,8 +63,8 @@ export interface Course {
   tone?: string;
   source: string;
   status: string;
-  outline_json?: string;
-  content_json?: string;
+  outline_json?: string | any;
+  content_json?: string | any;
   file_content?: string;
   generation_progress?: string;
   timecreated?: number;
@@ -202,7 +202,7 @@ export interface Exam {
   status: string;
   num_questions: number;
   difficulty?: string;
-  questions_json?: string;
+  questions_json?: string | any;
   course_topic?: string;
 }
 

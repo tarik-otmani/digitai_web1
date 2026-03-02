@@ -28,13 +28,19 @@ export default function PreviewExam() {
 
   const load = async () => {
     if (!id) return;
-    const e = await getExam(id);
-    setExam(e);
-    if (!e?.questions_json) return;
     try {
-      const q = JSON.parse(e.questions_json);
+      const e = await getExam(id);
+      setExam(e);
+      if (!e?.questions_json) {
+        setQuestions([]);
+        return;
+      }
+      const raw = e.questions_json;
+      const q = typeof raw === 'string' ? JSON.parse(raw) : raw;
       setQuestions(Array.isArray(q) ? q : []);
-    } catch {
+    } catch (err) {
+      console.error('Failed to load exam:', err);
+      setError('Failed to load exam questions');
       setQuestions([]);
     }
   };
