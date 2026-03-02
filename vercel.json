@@ -3,6 +3,20 @@
   "buildCommand": "npm run build",
   "installCommand": "npm install && cd webapp && npm install && cd ../new-frontend && npm install",
   "framework": null,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/server.js"
+    },
+    {
+      "source": "/uploads/(.*)",
+      "destination": "/server.js"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/$1"
+    }
+  ],
   "env": {
     "DATA_DIR": "/tmp/digitai-data",
     "UPLOAD_DIR": "/tmp/digitai-uploads"
