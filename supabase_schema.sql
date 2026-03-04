@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- Courses Table
 CREATE TABLE IF NOT EXISTS courses (
     id TEXT PRIMARY KEY,
+    owner_id TEXT REFERENCES users(id),
     topic TEXT,
     keywords TEXT,
     level TEXT,
@@ -30,6 +31,7 @@ CREATE TABLE IF NOT EXISTS courses (
 -- Exams Table
 CREATE TABLE IF NOT EXISTS exams (
     id TEXT PRIMARY KEY,
+    owner_id TEXT REFERENCES users(id),
     course_ref_id TEXT,
     status TEXT,
     num_questions INTEGER,

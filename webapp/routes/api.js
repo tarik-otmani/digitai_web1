@@ -30,6 +30,28 @@ function getApikey(req) {
   return (req.body?.apikey || req.query?.apikey || getApiKey() || '').trim();
 }
 
+/**
+ * Middleware to protect routes with JWT.
+ */
+async function authenticate(req, res, next) {
+  try {
+    const auth = req.headers.authorization;
+    const token = auth?.startsWith('Bearer ') ? auth.slice(7) : (req.body?.token || req.query?.token || null);
+    if (!token) return res.status(401).json({ success: false, error: 'Authentication required' });
+
+    const payload = verifyToken(token);
+    if (!payload) return res.status(401).json({ success: false, error: 'Invalid or expired token' });
+
+    const user = await userStore.getUserById(payload.id);
+    if (!user) return res.status(401).json({ success: false, error: 'User not found' });
+
+    req.user = user;
+    next();
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+}
+
 // ——— Auth ———
 apiRouter.post('/auth/register', async (req, res) => {
   try {
@@ -107,18 +129,18 @@ apiRouter.get('/auth/me', async (req, res) => {
 });
 
 // ——— Courses ———
-apiRouter.get('/courses', async (req, res) => {
+apiRouter.get('/courses', authenticate, async (req, res) => {
   try {
-    const courses = await store.getCourses();
+    const courses = await store.getCourses(req.user.id);
     res.json({ success: true, courses });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
 });
 
-apiRouter.get('/courses/:id', async (req, res) => {
+apiRouter.get('/courses/:id', authenticate, async (req, res) => {
   try {
-    const course = await store.getCourse(req.params.id);
+    const course = await store.getCourse(req.params.id, req.user.id);
     if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
     res.json({ success: true, course });
   } catch (e) {
@@ -127,9 +149,9 @@ apiRouter.get('/courses/:id', async (req, res) => {
 });
 
 // Update course (outline and/or content) — for editing plan before generate, or editing sections after.
-apiRouter.patch('/courses/:id', async (req, res) => {
+apiRouter.patch('/courses/:id', authenticate, async (req, res) => {
   try {
-    const course = await store.getCourse(req.params.id);
+    const course = await store.getCourse(req.params.id, req.user.id);
     if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
     const { topic, outline_json, content_json } = req.body || {};
     if (topic !== undefined) course.topic = topic;
@@ -143,7 +165,7 @@ apiRouter.patch('/courses/:id', async (req, res) => {
   }
 });
 
-apiRouter.post('/courses/outline', async (req, res) => {
+apiRouter.post('/courses/outline', authenticate, async (req, res) => {
   try {
     const apikey = getApikey(req);
     const { topic, keywords, level, tone } = req.body || {};
@@ -151,6 +173,7 @@ apiRouter.post('/courses/outline', async (req, res) => {
     const kw = typeof keywords === 'string' ? keywords.split(',').map((k) => k.trim()).filter(Boolean) : [];
     const outline = await generateOutline(apikey, topic, kw, level || 'intermediate', tone || 'professional');
     const course = await store.addCourse({
+      owner_id: req.user.id,
       topic,
       keywords: (kw || []).join(', '),
       level: level || 'intermediate',
@@ -171,10 +194,10 @@ apiRouter.post('/courses/outline', async (req, res) => {
   }
 });
 
-apiRouter.post('/courses/confirm-generation/:id', async (req, res) => {
+apiRouter.post('/courses/confirm-generation/:id', authenticate, async (req, res) => {
   try {
     const apikey = getApikey(req);
-    const course = await store.getCourse(req.params.id);
+    const course = await store.getCourse(req.params.id, req.user.id);
     if (!course || course.status !== 'outline_generated') {
       return res.status(400).json({ success: false, error: 'Course not found or not in outline state' });
     }
@@ -187,9 +210,10 @@ apiRouter.post('/courses/confirm-generation/:id', async (req, res) => {
 
     // Run section generation in background so client can poll progress
     const courseId = course.id;
+    const ownerId = req.user.id;
     const runGeneration = async () => {
       const sectionsContent = [];
-      let current = await store.getCourse(courseId);
+      let current = await store.getCourse(courseId, ownerId);
       if (!current || current.status !== 'generating') return;
       for (let i = 0; i < sections.length; i++) {
         const sec = sections[i];
@@ -221,12 +245,12 @@ apiRouter.post('/courses/confirm-generation/:id', async (req, res) => {
             practice_questions: [],
           });
         }
-        current = await store.getCourse(courseId);
+        current = await store.getCourse(courseId, ownerId);
         if (!current) return;
         current.generation_progress = `${i + 1}/${sections.length}`;
         await store.saveCourse(current);
       }
-      current = await store.getCourse(courseId);
+      current = await store.getCourse(courseId, ownerId);
       if (!current) {
         console.error(`Course ${courseId} lost during generation!`);
         return;
@@ -251,7 +275,7 @@ apiRouter.post('/courses/confirm-generation/:id', async (req, res) => {
   }
 });
 
-apiRouter.post('/courses/generate', async (req, res) => {
+apiRouter.post('/courses/generate', authenticate, async (req, res) => {
   try {
     const apikey = getApikey(req);
     const { topic, keywords, level, tone } = req.body || {};
@@ -261,6 +285,7 @@ apiRouter.post('/courses/generate', async (req, res) => {
     if (!result.success) return res.status(500).json({ success: false, error: result.error });
 
     const course = await store.addCourse({
+      owner_id: req.user.id,
       topic,
       keywords: (kw || []).join(', '),
       level: level || 'intermediate',
@@ -282,7 +307,7 @@ apiRouter.post('/courses/generate', async (req, res) => {
   }
 });
 
-apiRouter.post('/courses/upload', upload.single('file'), async (req, res) => {
+apiRouter.post('/courses/upload', authenticate, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
     const suggestedTitle = req.body?.title || req.file.originalname?.replace(/\.[^.]+$/, '') || 'Uploaded course';
@@ -297,6 +322,7 @@ apiRouter.post('/courses/upload', upload.single('file'), async (req, res) => {
     const { outline, sections } = await structureUploadedContent(apikey, fileContent, suggestedTitle);
     const contentData = { outline, sections };
     const course = await store.addCourse({
+      owner_id: req.user.id,
       topic: outline.title || suggestedTitle,
       source: 'uploaded',
       status: 'generated',
@@ -315,9 +341,9 @@ apiRouter.post('/courses/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-apiRouter.delete('/courses/:id', async (req, res) => {
+apiRouter.delete('/courses/:id', authenticate, async (req, res) => {
   try {
-    await store.deleteCourse(req.params.id);
+    await store.deleteCourse(req.params.id, req.user.id);
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
@@ -325,10 +351,10 @@ apiRouter.delete('/courses/:id', async (req, res) => {
 });
 
 // Regenerate a single section (optional commentary).
-apiRouter.post('/courses/:id/regenerate-section', async (req, res) => {
+apiRouter.post('/courses/:id/regenerate-section', authenticate, async (req, res) => {
   try {
     const apikey = getApikey(req);
-    const course = await store.getCourse(req.params.id);
+    const course = await store.getCourse(req.params.id, req.user.id);
     if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
     const { sectionIndex, commentary } = req.body || {};
     const idx = parseInt(sectionIndex, 10);
@@ -362,9 +388,9 @@ apiRouter.post('/courses/:id/regenerate-section', async (req, res) => {
 });
 
 // Export course as PDF.
-apiRouter.get('/courses/:id/export-pdf', async (req, res) => {
+apiRouter.get('/courses/:id/export-pdf', authenticate, async (req, res) => {
   try {
-    const course = await store.getCourse(req.params.id);
+    const course = await store.getCourse(req.params.id, req.user.id);
     if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
     const pdfBuffer = await buildCoursePdf(course);
     const filename = `${(course.topic || 'course').replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`;
@@ -377,10 +403,10 @@ apiRouter.get('/courses/:id/export-pdf', async (req, res) => {
 });
 
 // ——— Exams ———
-apiRouter.get('/exams', async (req, res) => {
+apiRouter.get('/exams', authenticate, async (req, res) => {
   try {
-    const exams = await store.getExams();
-    const courses = await store.getCourses();
+    const exams = await store.getExams(req.user.id);
+    const courses = await store.getCourses(req.user.id);
     const byId = Object.fromEntries(courses.map((c) => [c.id, c]));
     const withTopic = exams.map((e) => ({ ...e, course_topic: byId[e.course_ref_id]?.topic ?? 'Unknown' }));
     res.json({ success: true, exams: withTopic });
@@ -389,11 +415,11 @@ apiRouter.get('/exams', async (req, res) => {
   }
 });
 
-apiRouter.get('/exams/:id', async (req, res) => {
+apiRouter.get('/exams/:id', authenticate, async (req, res) => {
   try {
-    const exam = await store.getExam(req.params.id);
+    const exam = await store.getExam(req.params.id, req.user.id);
     if (!exam) return res.status(404).json({ success: false, error: 'Exam not found' });
-    const courses = await store.getCourses();
+    const courses = await store.getCourses(req.user.id);
     const course = courses.find((c) => String(c.id) === String(exam.course_ref_id));
     const examWithTopic = { ...exam, course_topic: course?.topic ?? exam.course_topic ?? 'Unknown' };
     res.json({ success: true, exam: examWithTopic });
@@ -402,12 +428,12 @@ apiRouter.get('/exams/:id', async (req, res) => {
   }
 });
 
-apiRouter.post('/exams/generate', async (req, res) => {
+apiRouter.post('/exams/generate', authenticate, async (req, res) => {
   try {
     const apikey = getApikey(req);
     const { course_ref_id, num_questions, difficulty, pct_mcq, pct_truefalse, pct_shortanswer, pct_essay, example_questions } = req.body || {};
     if (!course_ref_id) return res.status(400).json({ success: false, error: 'course_ref_id required' });
-    const course = await store.getCourse(course_ref_id);
+    const course = await store.getCourse(course_ref_id, req.user.id);
     if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
 
     let courseText = '';
@@ -433,6 +459,7 @@ apiRouter.post('/exams/generate', async (req, res) => {
     );
 
     const exam = await store.addExam({
+      owner_id: req.user.id,
       course_ref_id: String(course_ref_id),
       status: 'generated',
       num_questions: questions.length,
@@ -453,7 +480,7 @@ apiRouter.post('/exams/generate', async (req, res) => {
 
 async function updateExamQuestions(req, res) {
   try {
-    const exam = await store.getExam(req.params.id);
+    const exam = await store.getExam(req.params.id, req.user.id);
     if (!exam) return res.status(404).json({ success: false, error: 'Exam not found' });
     const { questions_json } = req.body || {};
     if (questions_json !== undefined) {
@@ -467,13 +494,13 @@ async function updateExamQuestions(req, res) {
   }
 }
 
-apiRouter.patch('/exams/:id', updateExamQuestions);
-apiRouter.post('/exams/:id/update', updateExamQuestions);
+apiRouter.patch('/exams/:id', authenticate, updateExamQuestions);
+apiRouter.post('/exams/:id/update', authenticate, updateExamQuestions);
 
-apiRouter.post('/exams/:id/regenerate-question', async (req, res) => {
+apiRouter.post('/exams/:id/regenerate-question', authenticate, async (req, res) => {
   try {
     const apikey = getApikey(req);
-    const exam = await store.getExam(req.params.id);
+    const exam = await store.getExam(req.params.id, req.user.id);
     if (!exam) return res.status(404).json({ success: false, error: 'Exam not found' });
     const { questionIndex } = req.body || {};
     const idx = parseInt(questionIndex, 10);
@@ -486,7 +513,7 @@ apiRouter.post('/exams/:id/regenerate-question', async (req, res) => {
     } catch { }
     if (idx >= questions.length) return res.status(400).json({ success: false, error: 'Question index out of range' });
 
-    const course = await store.getCourse(exam.course_ref_id);
+    const course = await store.getCourse(exam.course_ref_id, req.user.id);
     if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
     let courseText = '';
     try {
@@ -515,11 +542,11 @@ apiRouter.post('/exams/:id/regenerate-question', async (req, res) => {
   }
 });
 
-apiRouter.get('/exams/:id/export-pdf', async (req, res) => {
+apiRouter.get('/exams/:id/export-pdf', authenticate, async (req, res) => {
   try {
-    const exam = await store.getExam(req.params.id);
+    const exam = await store.getExam(req.params.id, req.user.id);
     if (!exam) return res.status(404).json({ success: false, error: 'Exam not found' });
-    const courses = await store.getCourses();
+    const courses = await store.getCourses(req.user.id);
     const course = courses.find((c) => String(c.id) === String(exam.course_ref_id));
     const courseTopic = course?.topic || exam.course_topic || '';
     const pdfBuffer = await buildExamPdf(exam, courseTopic);
@@ -532,9 +559,9 @@ apiRouter.get('/exams/:id/export-pdf', async (req, res) => {
   }
 });
 
-apiRouter.delete('/exams/:id', async (req, res) => {
+apiRouter.delete('/exams/:id', authenticate, async (req, res) => {
   try {
-    await store.deleteExam(req.params.id);
+    await store.deleteExam(req.params.id, req.user.id);
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
@@ -542,9 +569,9 @@ apiRouter.delete('/exams/:id', async (req, res) => {
 });
 
 // ——— Status (for polling) ———
-apiRouter.get('/status/course/:id', async (req, res) => {
+apiRouter.get('/status/course/:id', authenticate, async (req, res) => {
   try {
-    const course = await store.getCourse(req.params.id);
+    const course = await store.getCourse(req.params.id, req.user.id);
     if (!course) return res.status(404).json({ success: false });
     res.json({ success: true, status: course.status, generation_progress: course.generation_progress });
   } catch (e) {

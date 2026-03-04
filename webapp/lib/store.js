@@ -5,11 +5,12 @@ export async function ensureDirs() {
   // No-op for Supabase migration.
 }
 
-export async function getCourses() {
-  console.log('Fetching courses from Supabase...');
+export async function getCourses(ownerId) {
+  console.log(`Fetching courses for owner ${ownerId} from Supabase...`);
   const { data, error } = await supabase
     .from('courses')
     .select('*')
+    .eq('owner_id', ownerId)
     .order('timecreated', { ascending: false });
   if (error) {
     console.error('Error fetching courses:', error);
@@ -18,12 +19,13 @@ export async function getCourses() {
   return (data || []).map(applyJsonParsing);
 }
 
-export async function getCourse(id) {
-  console.log(`Fetching course ${id} from Supabase...`);
+export async function getCourse(id, ownerId) {
+  console.log(`Fetching course ${id} for owner ${ownerId} from Supabase...`);
   const { data, error } = await supabase
     .from('courses')
     .select('*')
     .eq('id', String(id))
+    .eq('owner_id', ownerId)
     .single();
   if (error && error.code !== 'PGRST116') {
     console.error(`Error fetching course ${id}:`, error);
@@ -61,7 +63,7 @@ function prepareJsonForSave(item) {
 }
 
 export async function saveCourse(course) {
-  console.log(`Saving course ${course.id} to Supabase... Status: ${course.status}, Progress: ${course.generation_progress}`);
+  console.log(`Saving course ${course.id} (owner ${course.owner_id}) to Supabase... Status: ${course.status}, Progress: ${course.generation_progress}`);
   const record = prepareJsonForSave({ ...course, timemodified: Date.now() });
   const { data, error } = await supabase
     .from('courses')
@@ -77,7 +79,7 @@ export async function saveCourse(course) {
 
 export async function addCourse(course) {
   const id = uuidv4();
-  console.log(`Adding new course with ID ${id} to Supabase...`);
+  console.log(`Adding new course with ID ${id} (owner ${course.owner_id}) to Supabase...`);
   const record = prepareJsonForSave({
     id,
     ...course,
@@ -96,12 +98,13 @@ export async function addCourse(course) {
   return applyJsonParsing(data);
 }
 
-export async function deleteCourse(id) {
-  console.log(`Deleting course ${id} from Supabase...`);
+export async function deleteCourse(id, ownerId) {
+  console.log(`Deleting course ${id} (owner ${ownerId}) from Supabase...`);
   const { error } = await supabase
     .from('courses')
     .delete()
-    .eq('id', String(id));
+    .eq('id', String(id))
+    .eq('owner_id', ownerId);
   if (error) {
     console.error(`Error deleting course ${id}:`, error);
     throw error;
@@ -109,11 +112,12 @@ export async function deleteCourse(id) {
   return true;
 }
 
-export async function getExams() {
-  console.log('Fetching exams from Supabase...');
+export async function getExams(ownerId) {
+  console.log(`Fetching exams for owner ${ownerId} from Supabase...`);
   const { data, error } = await supabase
     .from('exams')
     .select('*')
+    .eq('owner_id', ownerId)
     .order('timecreated', { ascending: false });
   if (error) {
     console.error('Error fetching exams:', error);
@@ -122,12 +126,13 @@ export async function getExams() {
   return (data || []).map(applyJsonParsing);
 }
 
-export async function getExam(id) {
-  console.log(`Fetching exam ${id} from Supabase...`);
+export async function getExam(id, ownerId) {
+  console.log(`Fetching exam ${id} for owner ${ownerId} from Supabase...`);
   const { data, error } = await supabase
     .from('exams')
     .select('*')
     .eq('id', String(id))
+    .eq('owner_id', ownerId)
     .single();
   if (error && error.code !== 'PGRST116') {
     console.error(`Error fetching exam ${id}:`, error);
@@ -138,7 +143,7 @@ export async function getExam(id) {
 
 export async function addExam(exam) {
   const id = uuidv4();
-  console.log(`Adding new exam with ID ${id} to Supabase... Course Ref: ${exam.course_ref_id}`);
+  console.log(`Adding new exam with ID ${id} (owner ${exam.owner_id}) to Supabase... Course Ref: ${exam.course_ref_id}`);
   const record = prepareJsonForSave({
     id,
     ...exam,
@@ -158,7 +163,7 @@ export async function addExam(exam) {
 }
 
 export async function saveExam(exam) {
-  console.log(`Saving exam ${exam.id} to Supabase...`);
+  console.log(`Saving exam ${exam.id} (owner ${exam.owner_id}) to Supabase...`);
   const record = prepareJsonForSave({ ...exam, timemodified: Date.now() });
   const { data, error } = await supabase
     .from('exams')
@@ -172,12 +177,13 @@ export async function saveExam(exam) {
   return applyJsonParsing(data);
 }
 
-export async function deleteExam(id) {
-  console.log(`Deleting exam ${id} from Supabase...`);
+export async function deleteExam(id, ownerId) {
+  console.log(`Deleting exam ${id} (owner ${ownerId}) from Supabase...`);
   const { error } = await supabase
     .from('exams')
     .delete()
-    .eq('id', String(id));
+    .eq('id', String(id))
+    .eq('owner_id', ownerId);
   if (error) {
     console.error(`Error deleting exam ${id}:`, error);
     throw error;

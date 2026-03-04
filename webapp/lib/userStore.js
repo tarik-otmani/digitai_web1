@@ -1,6 +1,4 @@
-/**
- * Store for users — uses Supabase PostgreSQL.
- */
+import { v4 as uuidv4 } from 'uuid';
 import { supabase } from './supabase.js';
 
 export async function ensureUsersFile() {
@@ -37,7 +35,7 @@ export async function getUserById(id) {
 }
 
 export async function addUser(user) {
-  const id = String(Date.now());
+  const id = uuidv4();
   const record = {
     id,
     ...user,

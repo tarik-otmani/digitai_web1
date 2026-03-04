@@ -22,9 +22,15 @@ async function request<T>(
 ): Promise<T> {
   const { body, ...rest } = options;
   const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
+
+  const token = localStorage.getItem('digitai_token');
   const headers: Record<string, string> = {
     ...(rest.headers as Record<string, string>),
   };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   if (body && typeof body === 'object' && !(body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
   }
