@@ -14,10 +14,10 @@ const MAX_INPUT_CHARS = 120000; // ~30k tokens, leave room for prompt
  * @returns {Promise<{ outline: object, sections: Array }>}
  */
 export async function structureUploadedContent(apikey, rawText, suggestedTitle = '') {
-  const text = String(rawText || '').trim();
-  if (!text) throw new Error('No content to analyze');
+  const rawContent = String(rawText || '').trim();
+  if (!rawContent) throw new Error('No content to analyze');
 
-  let input = text;
+  let input = rawContent;
   if (input.length > MAX_INPUT_CHARS) {
     input = input.slice(0, MAX_INPUT_CHARS) + '\n\n[... document truncated for analysis ...]';
   }
