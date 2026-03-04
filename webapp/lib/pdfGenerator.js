@@ -160,21 +160,23 @@ function renderContentWithHeadings(doc, content, width = CONTENT_WIDTH) {
 
 /**
  * Add footer with page numbers to all buffered pages.
- * Call only after all content is written and doc.end() has NOT been called yet.
+ * Uses raw PDF content stream (page.write) to avoid triggering new page creation.
+ * Must be called after all content is written, before doc.end().
  */
 function addPageFooters(doc) {
   const range = doc.bufferedPageRange();
   const total = range.count;
   for (let i = 0; i < total; i++) {
     doc.switchToPage(range.start + i);
-    doc.fontSize(9).font('Helvetica').fillColor('#9CA3AF');
-    doc.text(
-      `DigitAI · Page ${i + 1} / ${total}`,
-      MARGIN,
-      PAGE_HEIGHT - 20,
-      { align: 'center', width: CONTENT_WIDTH }
+    const label = `DigitAI   \u00B7   Page ${i + 1} / ${total}`;
+    // Write directly to the page's PDF content stream — bypasses PDFKit's text engine
+    // so it NEVER creates an extra page. PDF y-axis is bottom-up: 842 - pdfkit_y = pdf_y.
+    const pdfY = 20; // 842 - 822 = 20 from bottom of A4
+    const pdfX = 50;
+    const safe = label.replace(/[()\\]/g, '\\$&');
+    doc.page.write(
+      `q\nBT\n/Helvetica 9 Tf\n0.6 0.6 0.6 rg\n${pdfX} ${pdfY} Td\n(${safe}) Tj\nET\nQ\n`
     );
-    doc.fillColor('#000000');
   }
 }
 
