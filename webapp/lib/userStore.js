@@ -38,12 +38,15 @@ export async function addUser(user) {
   const id = uuidv4();
   const record = {
     id,
-    role: user.role ?? 'user',
-    active: user.active !== false,
-    ...user,
+    email: user.email,
+    password: user.password,
+    name: user.name,
     timecreated: Date.now(),
     timemodified: Date.now()
   };
+  // Optional columns (migration 02): only set if you know the table has them
+  if (user.role !== undefined) record.role = user.role;
+  if (user.active !== undefined) record.active = user.active;
 
   const { data, error } = await supabase
     .from('users')
@@ -52,7 +55,7 @@ export async function addUser(user) {
     .single();
 
   if (error) throw error;
-  return data;
+  return { ...data, role: data.role ?? 'user', active: data.active !== false };
 }
 
 export async function updateUser(id, updates) {
@@ -67,6 +70,13 @@ export async function updateUser(id, updates) {
     .eq('id', String(id))
     .select()
     .single();
-  if (error) throw error;
-  return data;
+  if (error) {
+    if (error.message && /column.*(role|active).*does not exist/i.test(error.message)) {
+      const err = new Error('User table missing role/active columns. Run migration 02_admin_and_token_usage.sql.');
+      err.code = 'MIGRATION_REQUIRED';
+      throw err;
+    }
+    throw error;
+  }
+  return { ...data, role: data.role ?? 'user', active: data.active !== false };
 }

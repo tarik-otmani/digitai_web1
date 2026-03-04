@@ -22,8 +22,8 @@ export async function recordUsage(userId, operation, usage = {}) {
   };
   const { error } = await supabase.from('token_usage').insert([record]);
   if (error) {
-    console.error('Error recording token usage:', error);
-    throw error;
+    console.error('Error recording token usage (table may not exist yet):', error.message);
+    return null;
   }
   return record;
 }
@@ -36,7 +36,10 @@ export async function getUsageByUser() {
   const { data, error } = await supabase
     .from('token_usage')
     .select('user_id, prompt_tokens, completion_tokens, total_tokens');
-  if (error) throw error;
+  if (error) {
+    console.warn('Token usage not available:', error.message);
+    return [];
+  }
   const byUser = new Map();
   for (const row of data || []) {
     const uid = row.user_id;
@@ -56,7 +59,10 @@ export async function getUsageByUser() {
  */
 export async function getTotalTokens() {
   const { data, error } = await supabase.from('token_usage').select('total_tokens');
-  if (error) throw error;
+  if (error) {
+    console.warn('Token usage not available:', error.message);
+    return 0;
+  }
   let sum = 0;
   for (const row of data || []) {
     sum += Number(row.total_tokens) || 0;
