@@ -7,12 +7,12 @@ const PDFDocument = require('pdfkit');
 
 // ─── Color palette (professional) ───
 const COLORS = {
-  title: '#1E3A5F',        // Navy – main course title
-  subtitle: '#64748B',     // Slate – description
-  sectionTitle: '#1E40AF', // Indigo-800 – section titles
-  sectionSub: '#4338CA',   // Indigo-700 – ## headings in content
-  sectionH3: '#4F46E5',    // Indigo-600 – ### headings
-  body: '#334155',         // Slate-700 – body text
+  title: '#1E3A5F',
+  subtitle: '#64748B',
+  sectionTitle: '#1E40AF',
+  sectionSub: '#4338CA',
+  sectionH3: '#4F46E5',
+  body: '#334155',
   objectivesTitle: '#1E3A8A',
   objectivesText: '#1E293B',
   keyTakeawaysTitle: '#B45309',
@@ -21,6 +21,13 @@ const COLORS = {
   lightBg: '#F8FAFC',
   border: '#E2E8F0',
 };
+
+const PAGE_HEIGHT = 842;
+const PAGE_WIDTH = 595;
+const MARGIN = 50;
+const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2; // 495
+const FOOTER_HEIGHT = 30; // space reserved for footer at bottom
+const USABLE_BOTTOM = PAGE_HEIGHT - FOOTER_HEIGHT; // 812
 
 /** Strip markdown except ** and * (we render bold/italic in PDF) */
 const stripMarkdown = (text) => {
@@ -103,8 +110,19 @@ const normalizeForPdf = (text) => {
     .trim();
 };
 
+/**
+ * Check if we need a new page and add one if so.
+ * @param {object} doc - PDFKit doc
+ * @param {number} neededHeight - estimated height of upcoming block
+ */
+function ensureSpace(doc, neededHeight = 60) {
+  if (doc.y + neededHeight > USABLE_BOTTOM) {
+    doc.addPage();
+  }
+}
+
 /** Render content with heading hierarchy: # title, ## subtitle, ### h3, body text */
-function renderContentWithHeadings(doc, content, width = 495) {
+function renderContentWithHeadings(doc, content, width = CONTENT_WIDTH) {
   const lines = content.split('\n');
   const opts = { width, lineGap: 2, paragraphGap: 3 };
 
@@ -112,26 +130,51 @@ function renderContentWithHeadings(doc, content, width = 495) {
     const line = lines[i];
     const trimmed = line.trim();
     if (!trimmed) {
-      doc.moveDown(0.3);
+      // Only move down if we're not near the bottom
+      if (doc.y + 12 < USABLE_BOTTOM) doc.moveDown(0.3);
       continue;
     }
 
     if (trimmed.startsWith('### ')) {
+      ensureSpace(doc, 24);
       doc.fontSize(10).fillColor(COLORS.sectionH3);
       renderRichText(doc, trimmed.slice(4), { ...opts, indent: 0 }, true);
-      doc.moveDown(0.2);
+      if (doc.y + 8 < USABLE_BOTTOM) doc.moveDown(0.2);
     } else if (trimmed.startsWith('## ')) {
+      ensureSpace(doc, 28);
       doc.fontSize(11).fillColor(COLORS.sectionSub);
       renderRichText(doc, trimmed.slice(3), { ...opts, indent: 0 }, true);
-      doc.moveDown(0.3);
+      if (doc.y + 10 < USABLE_BOTTOM) doc.moveDown(0.3);
     } else if (trimmed.startsWith('# ')) {
+      ensureSpace(doc, 32);
       doc.fontSize(12).fillColor(COLORS.sectionTitle);
       renderRichText(doc, trimmed.slice(2), { ...opts, indent: 0 }, true);
-      doc.moveDown(0.3);
+      if (doc.y + 10 < USABLE_BOTTOM) doc.moveDown(0.3);
     } else {
+      ensureSpace(doc, 16);
       doc.fontSize(10).fillColor(COLORS.body);
       renderRichText(doc, trimmed, opts);
     }
+  }
+}
+
+/**
+ * Add footer with page numbers to all buffered pages.
+ * Call only after all content is written and doc.end() has NOT been called yet.
+ */
+function addPageFooters(doc) {
+  const range = doc.bufferedPageRange();
+  const total = range.count;
+  for (let i = 0; i < total; i++) {
+    doc.switchToPage(range.start + i);
+    doc.fontSize(9).font('Helvetica').fillColor('#9CA3AF');
+    doc.text(
+      `DigitAI · Page ${i + 1} / ${total}`,
+      MARGIN,
+      PAGE_HEIGHT - 20,
+      { align: 'center', width: CONTENT_WIDTH }
+    );
+    doc.fillColor('#000000');
   }
 }
 
@@ -143,9 +186,10 @@ function renderContentWithHeadings(doc, content, width = 495) {
 export function buildCoursePdf(course) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
-      margin: 50,
+      margin: MARGIN,
       size: 'A4',
       bufferPages: true,
+      autoFirstPage: true,
       info: { Title: '', Author: '', Subject: '', Creator: 'DigitAI' },
     });
     const chunks = [];
@@ -163,19 +207,20 @@ export function buildCoursePdf(course) {
     const objectives = data.outline?.learning_objectives || [];
     const sections = data.sections || [];
 
-    const pageHeight = 842;
-    const bottomMargin = 70;
-    const contentWidth = 495;
-
-    // ─── Cover / Header ───
-    doc.rect(0, 0, 595, 90).fill('#1E3A5F');
-    doc.rect(0, 0, 595, 86).fill('#1E40AF');
+    // ─── Cover / Header band ───
+    doc.rect(0, 0, PAGE_WIDTH, 90).fill('#1E3A5F');
+    doc.rect(0, 0, PAGE_WIDTH, 86).fill('#1E40AF');
     doc.y = 28;
-    doc.fontSize(26).font('Helvetica-Bold').fillColor('#FFFFFF').text(title, { align: 'center', width: contentWidth });
+    doc.fontSize(26).font('Helvetica-Bold').fillColor('#FFFFFF')
+      .text(title, { align: 'center', width: CONTENT_WIDTH });
     doc.moveDown(0.2);
     if (description) {
       const shortDesc = stripMarkdown(description);
-      doc.fontSize(11).font('Helvetica').fillColor('#93C5FD').text(shortDesc.length > 100 ? shortDesc.slice(0, 100) + '…' : shortDesc, { align: 'center', width: contentWidth });
+      doc.fontSize(11).font('Helvetica').fillColor('#93C5FD')
+        .text(
+          shortDesc.length > 100 ? shortDesc.slice(0, 100) + '…' : shortDesc,
+          { align: 'center', width: CONTENT_WIDTH }
+        );
     }
     doc.fillColor(COLORS.body);
     doc.y = 105;
@@ -183,72 +228,84 @@ export function buildCoursePdf(course) {
 
     // ─── Description (full) ───
     if (description) {
+      ensureSpace(doc, 30);
       doc.fontSize(10).font('Helvetica').fillColor(COLORS.subtitle);
-      renderRichText(doc, normalizeForPdf(description), { width: contentWidth, lineGap: 2 });
+      renderRichText(doc, normalizeForPdf(description), { width: CONTENT_WIDTH, lineGap: 2 });
       doc.moveDown(1);
     }
 
     // ─── Learning objectives ───
     if (objectives.length) {
-      const objLines = objectives.map((o) => '• ' + stripMarkdown(o));
-      const objTitleH = 14;
-      let objContentH = 6;
       doc.fontSize(10);
-      objLines.forEach((line) => { objContentH += doc.heightOfString(line, { width: contentWidth - 24 }) + 3; });
-      const objH = Math.max(44, objTitleH + objContentH + 16);
+      const objLines = objectives.map((o) => '• ' + stripMarkdown(o));
+      let objContentH = 6;
+      objLines.forEach((line) => {
+        objContentH += doc.heightOfString(line, { width: CONTENT_WIDTH - 24 }) + 3;
+      });
+      const objH = Math.max(44, 14 + objContentH + 16);
+
+      ensureSpace(doc, objH + 16);
       const objY = doc.y;
 
-      doc.roundedRect(50, objY, contentWidth, objH, 8).fill('#EEF2FF').stroke('#C7D2FE');
+      doc.roundedRect(MARGIN, objY, CONTENT_WIDTH, objH, 8).fill('#EEF2FF').stroke('#C7D2FE');
       doc.y = objY + 14;
-      doc.fontSize(12).font('Helvetica-Bold').fillColor(COLORS.objectivesTitle).text('Objectifs d\'apprentissage', { width: contentWidth });
+      doc.fontSize(12).font('Helvetica-Bold').fillColor(COLORS.objectivesTitle)
+        .text('Objectifs d\'apprentissage', { width: CONTENT_WIDTH });
       doc.font('Helvetica').fontSize(10).fillColor(COLORS.objectivesText);
-      objectives.forEach((o) => renderRichText(doc, '• ' + o, { width: contentWidth - 12, indent: 12, lineGap: 2 }));
+      objectives.forEach((o) =>
+        renderRichText(doc, '• ' + o, { width: CONTENT_WIDTH - 12, indent: 12, lineGap: 2 })
+      );
       doc.y = objY + objH + 12;
     }
 
     // ─── Sections ───
     sections.forEach((sec, i) => {
-      if (doc.y > pageHeight - bottomMargin - 100) {
-        doc.addPage();
-        doc.y = 50;
-      }
+      // Always start a section with enough room for the header
+      ensureSpace(doc, 80);
 
       const secTitle = `${i + 1}. ${sec.title || 'Section'}`;
 
       // Section header block
       const headerH = 32;
       const headerY = doc.y;
-      doc.rect(50, headerY, 6, headerH).fill(COLORS.accent);
-      doc.roundedRect(56, headerY, contentWidth - 6, headerH, 6).fill('#F1F5F9').stroke(COLORS.border);
+      doc.rect(MARGIN, headerY, 6, headerH).fill(COLORS.accent);
+      doc.roundedRect(MARGIN + 6, headerY, CONTENT_WIDTH - 6, headerH, 6)
+        .fill('#F1F5F9').stroke(COLORS.border);
       doc.y = headerY + 10;
-      doc.fontSize(14).font('Helvetica-Bold').fillColor(COLORS.sectionTitle).text(secTitle, { indent: 20, width: contentWidth - 20 });
+      doc.fontSize(14).font('Helvetica-Bold').fillColor(COLORS.sectionTitle)
+        .text(secTitle, { indent: 20, width: CONTENT_WIDTH - 20 });
       doc.y = headerY + headerH + 10;
 
-      // Section content (with heading colors: # ## ###)
+      // Section content
       const content = normalizeForPdf(sec.content || '');
       if (content) {
-        renderContentWithHeadings(doc, content, contentWidth);
+        renderContentWithHeadings(doc, content, CONTENT_WIDTH);
       }
 
       // Key takeaways
       if (sec.key_takeaways?.length) {
-        doc.moveDown(0.6);
+        doc.fontSize(9);
         const ktLines = sec.key_takeaways.map((t) => '• ' + stripMarkdown(t));
         let ktH = 20;
-        doc.fontSize(9);
-        ktLines.forEach((line) => { ktH += doc.heightOfString(line, { width: contentWidth - 24 }) + 2; });
+        ktLines.forEach((line) => { ktH += doc.heightOfString(line, { width: CONTENT_WIDTH - 24 }) + 2; });
         ktH = Math.max(36, ktH);
+
+        ensureSpace(doc, ktH + 16);
+        if (doc.y + 8 < USABLE_BOTTOM) doc.moveDown(0.6);
         const ktY = doc.y;
 
-        doc.roundedRect(50, ktY, contentWidth, ktH, 6).fill('#FFFBEB').stroke('#FDE68A');
+        doc.roundedRect(MARGIN, ktY, CONTENT_WIDTH, ktH, 6).fill('#FFFBEB').stroke('#FDE68A');
         doc.y = ktY + 10;
-        doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.keyTakeawaysTitle).text('Points clés', { width: contentWidth });
+        doc.fontSize(10).font('Helvetica-Bold').fillColor(COLORS.keyTakeawaysTitle)
+          .text('Points clés', { width: CONTENT_WIDTH });
         doc.font('Helvetica').fontSize(9).fillColor(COLORS.keyTakeawaysText);
-        sec.key_takeaways.forEach((t) => renderRichText(doc, '• ' + t, { width: contentWidth - 12, indent: 12, lineGap: 2 }));
+        sec.key_takeaways.forEach((t) =>
+          renderRichText(doc, '• ' + t, { width: CONTENT_WIDTH - 12, indent: 12, lineGap: 2 })
+        );
         doc.y = ktY + ktH + 10;
       }
 
-      if (i < sections.length - 1) doc.moveDown(0.8);
+      if (i < sections.length - 1 && doc.y + 20 < USABLE_BOTTOM) doc.moveDown(0.8);
     });
 
     addPageFooters(doc);
@@ -265,30 +322,18 @@ function stripLeadingLetterPrefix(text) {
 }
 
 /**
- * Add footer with page numbers to buffered PDF pages.
- */
-function addPageFooters(doc) {
-  const range = doc.bufferedPageRange();
-  for (let i = 0; i < range.count; i++) {
-    doc.switchToPage(i);
-    doc.fontSize(9).font('Helvetica').fillColor('#9CA3AF');
-    doc.text(`DigitAI · Page ${i + 1}/${range.count}`, 50, 842 - 25, { align: 'center', width: 495 });
-    doc.fillColor('#000000');
-  }
-}
-
-/**
  * Build a printable exam PDF for students (questions only, no answers).
  * @param {object} exam - { course_topic, difficulty, questions_json }
- * @param {object} [courseTopic] - optional display title
+ * @param {string} [courseTopic] - optional display title
  * @returns {Promise<Buffer>}
  */
 export function buildExamPdf(exam, courseTopic = '') {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
-      margin: 50,
+      margin: MARGIN,
       size: 'A4',
       bufferPages: true,
+      autoFirstPage: true,
       info: { Title: '', Author: '', Subject: '', Creator: 'DigitAI' },
     });
     const chunks = [];
@@ -305,41 +350,54 @@ export function buildExamPdf(exam, courseTopic = '') {
     const title = courseTopic || exam.course_topic || 'Exam';
     const difficulty = exam.difficulty || 'mixed';
 
-    // —— Header: gradient-like layered bands ——
-    doc.rect(0, 0, 595, 80).fill('#4338CA');
-    doc.rect(0, 0, 595, 76).fill('#4F46E5');
+    // —— Header ——
+    doc.rect(0, 0, PAGE_WIDTH, 80).fill('#4338CA');
+    doc.rect(0, 0, PAGE_WIDTH, 76).fill('#4F46E5');
     doc.y = 28;
-    doc.fontSize(24).font('Helvetica-Bold').fillColor('#FFFFFF').text(title, { align: 'center', width: 495 });
+    doc.fontSize(24).font('Helvetica-Bold').fillColor('#FFFFFF')
+      .text(title, { align: 'center', width: CONTENT_WIDTH });
     doc.moveDown(0.25);
-    doc.fontSize(11).font('Helvetica').fillColor('#C7D2FE').text(`${questions.length} question(s) · Difficulté: ${difficulty}`, { align: 'center' });
+    doc.fontSize(11).font('Helvetica').fillColor('#C7D2FE')
+      .text(`${questions.length} question(s) · Difficulté: ${difficulty}`, { align: 'center' });
     doc.fillColor('#000000');
     doc.y = 95;
     doc.moveDown(0.5);
 
     // Student info box
+    ensureSpace(doc, 60);
     const boxY = doc.y;
-    doc.roundedRect(50, boxY, 495, 42, 6).fill('#EEF2FF').stroke('#C7D2FE');
+    doc.roundedRect(MARGIN, boxY, CONTENT_WIDTH, 42, 6).fill('#EEF2FF').stroke('#C7D2FE');
     doc.fillColor('#3730A3');
-    doc.fontSize(10).font('Helvetica-Bold').text('Nom et prénom: _________________________________________', 60, boxY + 10, { width: 480 });
+    doc.fontSize(10).font('Helvetica-Bold')
+      .text('Nom et prénom: _________________________________________', 60, boxY + 10, { width: 480 });
     doc.text('Date: _________________________', 60, boxY + 26, { width: 480 });
     doc.fillColor('#000000');
     doc.y = boxY + 42;
     doc.moveDown(0.5);
-    doc.fontSize(9).fillColor('#64748B').text("Répondez à toutes les questions. Cochez la case ou écrivez votre réponse dans l'espace prévu.", { align: 'left' });
+
+    ensureSpace(doc, 24);
+    doc.fontSize(9).fillColor('#64748B')
+      .text("Répondez à toutes les questions. Cochez la case ou écrivez votre réponse dans l'espace prévu.", { align: 'left' });
     doc.fillColor('#000000');
     doc.moveDown(1.2);
 
     questions.forEach((q, i) => {
+      // Estimate how much space this question needs
+      const isOpenEnded = !q.options || q.options.length === 0;
+      const estimatedH = isOpenEnded ? 140 : 60 + (q.options?.length || 0) * 22;
+      ensureSpace(doc, estimatedH);
+
       const qTop = doc.y;
       const qNum = i + 1;
 
       // Separator line
-      doc.rect(50, qTop - 4, 495, 1).fill('#E0E7FF');
+      doc.rect(MARGIN, qTop - 4, CONTENT_WIDTH, 1).fill('#E0E7FF');
       doc.y = qTop;
 
-      // Question: indigo bar + number + text
-      doc.rect(50, qTop - 2, 5, 24).fill('#4F46E5');
-      doc.fontSize(12).font('Helvetica-Bold').fillColor('#1E293B').text(`${qNum}. ${stripMarkdown(q.question || '')}`, { align: 'left', lineGap: 3, indent: 12 });
+      // Question bar + text
+      doc.rect(MARGIN, qTop - 2, 5, 24).fill('#4F46E5');
+      doc.fontSize(12).font('Helvetica-Bold').fillColor('#1E293B')
+        .text(`${qNum}. ${stripMarkdown(q.question || '')}`, { align: 'left', lineGap: 3, indent: 12 });
       doc.moveDown(0.5);
 
       if (q.options && q.options.length > 0) {
@@ -348,17 +406,21 @@ export function buildExamPdf(exam, courseTopic = '') {
           const letter = String.fromCharCode(65 + j);
           const optLabel = stripLeadingLetterPrefix(stripMarkdown(opt));
           const optY = doc.y + 6;
+          ensureSpace(doc, 22);
           doc.circle(58, optY, 4).stroke('#94A3B8');
           doc.text(`  ${letter}.  ${optLabel}`, { continued: false, lineGap: 2, indent: 12 });
         });
         doc.moveDown(0.6);
       } else {
+        ensureSpace(doc, 90);
         const answerBoxTop = doc.y + 4;
         const lineHeight = 16;
         const numLines = 5;
         doc.roundedRect(60, answerBoxTop, 475, lineHeight * numLines, 4).fill('#F8FAFC').stroke('#E2E8F0');
         for (let L = 0; L < numLines - 1; L++) {
-          doc.moveTo(65, answerBoxTop + lineHeight * (L + 1)).lineTo(528, answerBoxTop + lineHeight * (L + 1)).stroke('#E2E8F0');
+          doc.moveTo(65, answerBoxTop + lineHeight * (L + 1))
+            .lineTo(528, answerBoxTop + lineHeight * (L + 1))
+            .stroke('#E2E8F0');
         }
         doc.y = answerBoxTop + lineHeight * numLines;
         doc.moveDown(0.5);
@@ -371,3 +433,5 @@ export function buildExamPdf(exam, courseTopic = '') {
     doc.end();
   });
 }
+
+// ─── Color palette (professional) ───
