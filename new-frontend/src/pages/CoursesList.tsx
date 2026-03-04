@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Eye, Edit, Trash2, Download } from 'lucide-react';
-import { getCourses, deleteCourse, type Course } from '../api';
+import { getCourses, deleteCourse, getCourseExportPdfUrl, type Course } from '../api';
 
 export default function CoursesList() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -65,7 +65,7 @@ export default function CoursesList() {
                     <Edit className="w-4 h-4" />
                   </Link>
                   <a
-                    href={`/api/courses/${c.id}/export-pdf`}
+                    href={getCourseExportPdfUrl(c.id)}
                     download={`${c.topic.replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`}
                     className="p-2 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50"
                     title="Export PDF"

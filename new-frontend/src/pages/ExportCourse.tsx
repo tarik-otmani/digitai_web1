@@ -14,19 +14,28 @@ export default function ExportCourse() {
     getCourses().then(setCourses).catch(console.error);
   }, []);
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     if (!selectedCourse) return;
     setError('');
     setLoading(true);
-    const url = getCourseExportPdfUrl(selectedCourse);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${(courses.find((c) => c.id === selectedCourse)?.topic || 'course').replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`;
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setLoading(false);
+    try {
+      const url = getCourseExportPdfUrl(selectedCourse);
+      const res = await fetch(url);
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${(courses.find((c) => c.id === selectedCourse)?.topic || 'course').replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (e) {
+      setError('Export failed: ' + (e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

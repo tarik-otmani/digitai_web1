@@ -66,9 +66,30 @@ export default function PreviewCourse() {
   const [content, setContent] = useState<CourseContent | null>(null);
   const [editingSection, setEditingSection] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [regenerating, setRegenerating] = useState<number | null>(null);
   const [commentary, setCommentary] = useState<Record<number, string>>({});
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+
+  const handleExportPdf = async () => {
+    if (!id) return;
+    setExporting(true);
+    try {
+      const url = getCourseExportPdfUrl(id);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(await res.text());
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${(course?.topic || 'course').replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (e) {
+      alert('PDF export failed: ' + (e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const load = async () => {
     if (!id) return;
@@ -189,14 +210,18 @@ export default function PreviewCourse() {
             )}
             Save changes
           </button>
-          <a
-            href={getCourseExportPdfUrl(id)}
-            download={`${(course.topic || 'course').replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium flex items-center gap-2 hover:bg-indigo-700"
+          <button
+            onClick={handleExportPdf}
+            disabled={exporting}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium flex items-center gap-2 hover:bg-indigo-700 disabled:opacity-60"
           >
-            <Download className="w-4 h-4" />
+            {exporting ? (
+              <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
             Export PDF
-          </a>
+          </button>
         </div>
       </div>
 

@@ -198,7 +198,8 @@ export async function postRegenerateSection(
 }
 
 export function getCourseExportPdfUrl(id: string): string {
-  return `${API_BASE}/courses/${id}/export-pdf`;
+  const token = localStorage.getItem('digitai_token') || '';
+  return `${API_BASE}/courses/${id}/export-pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`;
 }
 
 // ——— Exams ———
@@ -274,7 +275,8 @@ export async function postRegenerateQuestion(
 }
 
 export function getExamExportPdfUrl(id: string): string {
-  return `${API_BASE}/exams/${id}/export-pdf`;
+  const token = localStorage.getItem('digitai_token') || '';
+  return `${API_BASE}/exams/${id}/export-pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`;
 }
 
 export async function deleteExam(id: string): Promise<void> {
