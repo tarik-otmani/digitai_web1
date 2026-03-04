@@ -126,6 +126,26 @@ export async function getExams(ownerId) {
   return (data || []).map(applyJsonParsing);
 }
 
+/** Admin: all courses (id, owner_id, topic, timecreated) for stats. */
+export async function getAllCoursesForAdmin() {
+  const { data, error } = await supabase
+    .from('courses')
+    .select('id, owner_id, topic, timecreated')
+    .order('timecreated', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+/** Admin: all exams (id, owner_id, course_ref_id, num_questions, timecreated) for stats. */
+export async function getAllExamsForAdmin() {
+  const { data, error } = await supabase
+    .from('exams')
+    .select('id, owner_id, course_ref_id, num_questions, timecreated')
+    .order('timecreated', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
 export async function getExam(id, ownerId) {
   console.log(`Fetching exam ${id} for owner ${ownerId} from Supabase...`);
   const { data, error } = await supabase

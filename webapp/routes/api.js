@@ -14,6 +14,7 @@ import { structureUploadedContent } from '../lib/uploadAnalyzer.js';
 import { getApiKey } from '../lib/gemini.js';
 import { buildCoursePdf, buildExamPdf } from '../lib/pdfGenerator.js';
 import * as userStore from '../lib/userStore.js';
+import * as usageStore from '../lib/usageStore.js';
 import { hashPassword, verifyPassword, signToken, verifyToken } from '../lib/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -44,6 +45,7 @@ async function authenticate(req, res, next) {
 
     const user = await userStore.getUserById(payload.id);
     if (!user) return res.status(401).json({ success: false, error: 'User not found' });
+    if (user.active === false) return res.status(403).json({ success: false, error: 'Account is disabled' });
 
     req.user = user;
     next();
@@ -76,7 +78,7 @@ apiRouter.post('/auth/register', async (req, res) => {
     res.json({
       success: true,
       token,
-      user: { id: user.id, email: user.email, name: user.name },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role || 'user', active: user.active !== false },
     });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
@@ -100,7 +102,7 @@ apiRouter.post('/auth/login', async (req, res) => {
     res.json({
       success: true,
       token,
-      user: { id: user.id, email: user.email, name: user.name },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role || 'user', active: user.active !== false },
     });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
@@ -121,12 +123,22 @@ apiRouter.get('/auth/me', async (req, res) => {
 
     res.json({
       success: true,
-      user: { id: user.id, email: user.email, name: user.name },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role || 'user', active: user.active !== false },
     });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
 });
+
+function authenticateAdmin(req, res, next) {
+  authenticate(req, res, function adminCheck() {
+    if (res.headersSent) return;
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Admin access required' });
+    }
+    next();
+  });
+}
 
 // ——— Courses ———
 apiRouter.get('/courses', authenticate, async (req, res) => {
@@ -171,7 +183,9 @@ apiRouter.post('/courses/outline', authenticate, async (req, res) => {
     const { topic, keywords, level, tone } = req.body || {};
     if (!topic) return res.status(400).json({ success: false, error: 'topic required' });
     const kw = typeof keywords === 'string' ? keywords.split(',').map((k) => k.trim()).filter(Boolean) : [];
-    const outline = await generateOutline(apikey, topic, kw, level || 'intermediate', tone || 'professional');
+    const outlineResult = await generateOutline(apikey, topic, kw, level || 'intermediate', tone || 'professional');
+    const outline = outlineResult?.outline;
+    if (outlineResult?.usage) await usageStore.recordUsage(req.user.id, 'course_outline', outlineResult.usage);
     const course = await store.addCourse({
       owner_id: req.user.id,
       topic,
@@ -218,7 +232,7 @@ apiRouter.post('/courses/confirm-generation/:id', authenticate, async (req, res)
       for (let i = 0; i < sections.length; i++) {
         const sec = sections[i];
         try {
-          const content = await generateSectionContent(
+          const sectionResult = await generateSectionContent(
             apikey,
             outline.title ?? current.topic,
             sec.title ?? 'Section',
@@ -227,6 +241,8 @@ apiRouter.post('/courses/confirm-generation/:id', authenticate, async (req, res)
             current.level ?? 'intermediate',
             current.tone ?? 'professional'
           );
+          if (sectionResult?.usage) await usageStore.recordUsage(ownerId, 'course_section', sectionResult.usage);
+          const content = sectionResult?.content;
           sectionsContent.push(
             content || {
               title: sec.title,
@@ -283,6 +299,7 @@ apiRouter.post('/courses/generate', authenticate, async (req, res) => {
     const kw = typeof keywords === 'string' ? keywords.split(',').map((k) => k.trim()).filter(Boolean) : [];
     const result = await generateFullCourse(apikey, topic, kw, level || 'intermediate', tone || 'professional');
     if (!result.success) return res.status(500).json({ success: false, error: result.error });
+    if (result.totalUsage) await usageStore.recordUsage(req.user.id, 'course_full', result.totalUsage);
 
     const course = await store.addCourse({
       owner_id: req.user.id,
@@ -293,13 +310,13 @@ apiRouter.post('/courses/generate', authenticate, async (req, res) => {
       source: 'generated',
       status: 'generated',
       outline_json: JSON.stringify(result.outline),
-      content_json: JSON.stringify(result),
+      content_json: JSON.stringify({ outline: result.outline, sections: result.sections }),
     });
     res.json({
       success: true,
       recordid: course.id,
       status: 'generated',
-      previewurl: `/dashboard.html#course-${course.id}`,
+      previewurl: `/course/${course.id}`,
       message: 'Course generated.',
     });
   } catch (e) {
@@ -319,7 +336,9 @@ apiRouter.post('/courses/upload', authenticate, upload.single('file'), async (re
       return res.status(400).json({ success: false, error: 'API key required. Set your Gemini API key in Settings to structure uploaded content into sections.' });
     }
     const fileContent = await extractText(req.file.path, req.file.originalname);
-    const { outline, sections } = await structureUploadedContent(apikey, fileContent, suggestedTitle);
+    const uploadResult = await structureUploadedContent(apikey, fileContent, suggestedTitle);
+    const { outline, sections, usage } = uploadResult;
+    if (usage) await usageStore.recordUsage(req.user.id, 'upload_structure', usage);
     const contentData = { outline, sections };
     const course = await store.addCourse({
       owner_id: req.user.id,
@@ -367,7 +386,7 @@ apiRouter.post('/courses/:id/regenerate-section', authenticate, async (req, res)
     if (idx >= sections.length) return res.status(400).json({ success: false, error: 'Section index out of range' });
     const courseTitle = data.outline?.title || course.topic || 'Course';
     const sectionData = sections[idx];
-    const newSection = await regenerateSection(
+    const regenResult = await regenerateSection(
       apikey,
       courseTitle,
       sectionData,
@@ -375,7 +394,9 @@ apiRouter.post('/courses/:id/regenerate-section', authenticate, async (req, res)
       course.level || 'intermediate',
       course.tone || 'professional'
     );
+    const newSection = regenResult?.content;
     if (!newSection) return res.status(500).json({ success: false, error: 'Regeneration failed' });
+    if (regenResult?.usage) await usageStore.recordUsage(req.user.id, 'course_regenerate_section', regenResult.usage);
     sections[idx] = newSection;
     data.sections = sections;
     course.content_json = JSON.stringify(data);
@@ -447,7 +468,7 @@ apiRouter.post('/exams/generate', authenticate, async (req, res) => {
     if (!courseText) courseText = course.topic || 'General knowledge';
 
     const num = Math.min(50, Math.max(5, parseInt(num_questions, 10) || 20));
-    const questions = await generateQuestions(
+    const examResult = await generateQuestions(
       apikey,
       course.topic,
       courseText,
@@ -457,6 +478,8 @@ apiRouter.post('/exams/generate', authenticate, async (req, res) => {
       { pct_mcq, pct_truefalse, pct_shortanswer, pct_essay },
       'moodle'
     );
+    const questions = examResult?.questions ?? [];
+    if (examResult?.usage) await usageStore.recordUsage(req.user.id, 'exam_generate', examResult.usage);
 
     const exam = await store.addExam({
       owner_id: req.user.id,
@@ -528,8 +551,10 @@ apiRouter.post('/exams/:id/regenerate-question', authenticate, async (req, res) 
     const existing = questions[idx];
     const qType = existing?.type || 'mcq';
     const difficulty = exam.difficulty || 'mixed';
-    const newQuestion = await generateSingleQuestion(apikey, course.topic, courseText, qType, difficulty);
+    const singleResult = await generateSingleQuestion(apikey, course.topic, courseText, qType, difficulty);
+    const newQuestion = singleResult?.question;
     if (!newQuestion || !newQuestion.question) return res.status(500).json({ success: false, error: 'Regeneration failed' });
+    if (singleResult?.usage) await usageStore.recordUsage(req.user.id, 'exam_regenerate_question', singleResult.usage);
 
     questions[idx] = { ...existing, ...newQuestion, type: newQuestion.type || qType };
     exam.questions_json = JSON.stringify(questions);
@@ -576,5 +601,101 @@ apiRouter.get('/status/course/:id', authenticate, async (req, res) => {
     res.json({ success: true, status: course.status, generation_progress: course.generation_progress });
   } catch (e) {
     res.status(500).json({ success: false });
+  }
+});
+
+// ——— Admin ———
+apiRouter.get('/admin/stats', authenticateAdmin, async (req, res) => {
+  try {
+    const [users, courses, exams, usageByUser, totalTokens] = await Promise.all([
+      userStore.getUsers(),
+      store.getAllCoursesForAdmin(),
+      store.getAllExamsForAdmin(),
+      usageStore.getUsageByUser(),
+      usageStore.getTotalTokens(),
+    ]);
+    const usageMap = new Map(usageByUser.map((u) => [u.user_id, u]));
+    const courseCountByUser = new Map();
+    const examCountByUser = new Map();
+    for (const c of courses) {
+      const uid = c.owner_id;
+      if (uid) courseCountByUser.set(uid, (courseCountByUser.get(uid) || 0) + 1);
+    }
+    for (const e of exams) {
+      const uid = e.owner_id;
+      if (uid) examCountByUser.set(uid, (examCountByUser.get(uid) || 0) + 1);
+    }
+    const courseTitles = courses.slice(0, 50).map((c) => ({ id: c.id, topic: c.topic, owner_id: c.owner_id }));
+    const examTitles = exams.slice(0, 50).map((e) => ({ id: e.id, course_ref_id: e.course_ref_id, num_questions: e.num_questions, owner_id: e.owner_id }));
+    res.json({
+      success: true,
+      stats: {
+        usersCount: users.length,
+        coursesCount: courses.length,
+        examsCount: exams.length,
+        totalTokens,
+      },
+      courseTitles,
+      examTitles,
+      usageByUser: usageByUser.map((u) => ({
+        ...u,
+        coursesCount: courseCountByUser.get(u.user_id) || 0,
+        examsCount: examCountByUser.get(u.user_id) || 0,
+      })),
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+apiRouter.get('/admin/users', authenticateAdmin, async (req, res) => {
+  try {
+    const [users, courses, exams, usageByUser] = await Promise.all([
+      userStore.getUsers(),
+      store.getAllCoursesForAdmin(),
+      store.getAllExamsForAdmin(),
+      usageStore.getUsageByUser(),
+    ]);
+    const usageMap = new Map(usageByUser.map((u) => [u.user_id, u]));
+    const courseCountByUser = new Map();
+    const examCountByUser = new Map();
+    for (const c of courses) {
+      const uid = c.owner_id;
+      if (uid) courseCountByUser.set(uid, (courseCountByUser.get(uid) || 0) + 1);
+    }
+    for (const e of exams) {
+      const uid = e.owner_id;
+      if (uid) examCountByUser.set(uid, (examCountByUser.get(uid) || 0) + 1);
+    }
+    const list = users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      role: u.role || 'user',
+      active: u.active !== false,
+      timecreated: u.timecreated,
+      coursesCount: courseCountByUser.get(u.id) || 0,
+      examsCount: examCountByUser.get(u.id) || 0,
+      totalTokens: (usageMap.get(u.id) || {}).total_tokens || 0,
+    }));
+    res.json({ success: true, users: list });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+apiRouter.patch('/admin/users/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { active, role } = req.body || {};
+    const updates = {};
+    if (typeof active === 'boolean') updates.active = active;
+    if (role === 'admin' || role === 'user') updates.role = role;
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ success: false, error: 'Provide active and/or role to update' });
+    }
+    const user = await userStore.updateUser(req.params.id, updates);
+    res.json({ success: true, user: { id: user.id, email: user.email, name: user.name, role: user.role || 'user', active: user.active !== false } });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
   }
 });

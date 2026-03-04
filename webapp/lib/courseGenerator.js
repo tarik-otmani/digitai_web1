@@ -38,8 +38,9 @@ Return ONLY valid JSON with this structure:
 
 CRITICAL: Return ONLY the JSON object, no markdown fences, no extra text.`;
 
-  const text = await generateContent(apikey, prompt, { temperature: 0.7, maxOutputTokens: 8192 });
-  return extractJsonFromResponse(text);
+  const { text, usage } = await generateContent(apikey, prompt, { temperature: 0.7, maxOutputTokens: 8192 });
+  const outline = extractJsonFromResponse(text);
+  return { outline, usage };
 }
 
 export async function generateSectionContent(apikey, courseTitle, sectionTitle, sectionDescription, keyTopics = [], level = 'intermediate', tone = 'professional') {
@@ -73,22 +74,24 @@ Return ONLY valid JSON:
 
 CRITICAL: Return ONLY the JSON object, no markdown fences, no extra text.`;
 
-  const text = await generateContent(apikey, prompt, { temperature: 0.7, maxOutputTokens: 16384 });
+  const { text, usage } = await generateContent(apikey, prompt, { temperature: 0.7, maxOutputTokens: 16384 });
   const data = extractJsonFromResponse(text);
   if (data?.content && typeof data.content === 'string') {
     data.content = normalizeSectionContent(data.content);
   }
-  return data;
+  return { content: data, usage };
 }
 
 export async function generateFullCourse(apikey, topic, keywords = [], level = 'intermediate', tone = 'professional') {
-  const outline = await generateOutline(apikey, topic, keywords, level, tone);
+  const outlineResult = await generateOutline(apikey, topic, keywords, level, tone);
+  const outline = outlineResult?.outline;
   if (!outline) return { success: false, error: 'Failed to generate outline' };
 
+  let totalUsage = outlineResult.usage || {};
   const sections = outline.sections ?? [];
   const sectionsContent = [];
   for (const section of sections) {
-    const content = await generateSectionContent(
+    const sectionResult = await generateSectionContent(
       apikey,
       outline.title ?? topic,
       section.title ?? 'Untitled Section',
@@ -97,6 +100,14 @@ export async function generateFullCourse(apikey, topic, keywords = [], level = '
       level,
       tone
     );
+    const content = sectionResult?.content;
+    if (sectionResult?.usage) {
+      totalUsage = {
+        promptTokenCount: (totalUsage.promptTokenCount || 0) + (sectionResult.usage.promptTokenCount || 0),
+        candidatesTokenCount: (totalUsage.candidatesTokenCount || 0) + (sectionResult.usage.candidatesTokenCount || 0),
+        totalTokenCount: (totalUsage.totalTokenCount || 0) + (sectionResult.usage.totalTokenCount || 0),
+      };
+    }
     if (content) {
       sectionsContent.push(content);
     } else {
@@ -115,6 +126,7 @@ export async function generateFullCourse(apikey, topic, keywords = [], level = '
     outline,
     sections: sectionsContent,
     total_sections: sectionsContent.length,
+    totalUsage,
   };
 }
 
@@ -146,10 +158,10 @@ Return ONLY valid JSON with this structure:
 
 CRITICAL: Return ONLY the JSON object, no markdown fences, no extra text.`;
 
-  const text = await generateContent(apikey, prompt, { temperature: 0.7, maxOutputTokens: 16384 });
+  const { text, usage } = await generateContent(apikey, prompt, { temperature: 0.7, maxOutputTokens: 16384 });
   const data = extractJsonFromResponse(text);
   if (data?.content && typeof data.content === 'string') {
     data.content = normalizeSectionContent(data.content);
   }
-  return data;
+  return { content: data, usage };
 }

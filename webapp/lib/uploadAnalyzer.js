@@ -61,12 +61,12 @@ CRITICAL:
 - Escape quotes and newlines properly in JSON strings.
 - Use \\n for line breaks inside content strings.`;
 
-  const response = await generateContent(apikey, prompt, {
+  const { text, usage } = await generateContent(apikey, prompt, {
     temperature: 0.3,
     maxOutputTokens: 32768,
   });
 
-  const data = extractJsonFromResponse(response);
+  const data = extractJsonFromResponse(text);
   if (!data || typeof data !== 'object') throw new Error('Invalid structure from AI');
 
   const outline = data.outline || {};
@@ -88,6 +88,7 @@ CRITICAL:
       learning_objectives: Array.isArray(outline.learning_objectives) ? outline.learning_objectives : [],
     },
     sections,
+    usage,
   };
 }
 

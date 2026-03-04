@@ -95,7 +95,14 @@ export async function generateContent(apikey, prompt, config = {}, modelOverride
   if (res.status !== 200) {
     throw new Error(data?.error?.message || `HTTP ${res.status}`);
   }
-  return extractText(data);
+  const text = extractText(data);
+  const um = data?.usageMetadata || {};
+  const usage = {
+    promptTokenCount: um.promptTokenCount ?? 0,
+    candidatesTokenCount: um.candidatesTokenCount ?? 0,
+    totalTokenCount: um.totalTokenCount ?? (um.promptTokenCount ?? 0) + (um.candidatesTokenCount ?? 0),
+  };
+  return { text, usage };
 }
 
 export function extractJsonFromResponse(text) {

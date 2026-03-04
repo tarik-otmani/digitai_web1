@@ -304,6 +304,8 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
+  role?: string;
+  active?: boolean;
 }
 
 export async function postAuthRegister(params: {
@@ -335,4 +337,44 @@ export function getStoredToken(): string | null {
 export function setStoredToken(token: string | null): void {
   if (token) localStorage.setItem('digitai_token', token);
   else localStorage.removeItem('digitai_token');
+}
+
+// ——— Admin ———
+export interface AdminStats {
+  stats: { usersCount: number; coursesCount: number; examsCount: number; totalTokens: number };
+  courseTitles: { id: string; topic: string; owner_id: string }[];
+  examTitles: { id: string; course_ref_id: string; num_questions: number; owner_id: string }[];
+  usageByUser: { user_id: string; total_tokens: number; coursesCount: number; examsCount: number }[];
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  active: boolean;
+  timecreated?: number;
+  coursesCount: number;
+  examsCount: number;
+  totalTokens: number;
+}
+
+export async function getAdminStats(): Promise<AdminStats> {
+  const r = await request<{ success: boolean; stats: AdminStats['stats']; courseTitles: AdminStats['courseTitles']; examTitles: AdminStats['examTitles']; usageByUser: AdminStats['usageByUser'] }>('/admin/stats');
+  return r as AdminStats;
+}
+
+export async function getAdminUsers(): Promise<AdminUser[]> {
+  const r = await request<{ success: boolean; users: AdminUser[] }>('/admin/users');
+  return r.users || [];
+}
+
+export async function patchAdminUser(
+  userId: string,
+  data: { active?: boolean; role?: string }
+): Promise<{ success: boolean; user: AdminUser }> {
+  return request(`/admin/users/${userId}`, {
+    method: 'PATCH',
+    body: data,
+  });
 }

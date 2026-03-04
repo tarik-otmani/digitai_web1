@@ -38,6 +38,8 @@ export async function addUser(user) {
   const id = uuidv4();
   const record = {
     id,
+    role: user.role ?? 'user',
+    active: user.active !== false,
     ...user,
     timecreated: Date.now(),
     timemodified: Date.now()
@@ -49,6 +51,22 @@ export async function addUser(user) {
     .select()
     .single();
 
+  if (error) throw error;
+  return data;
+}
+
+export async function updateUser(id, updates) {
+  const allowed = ['name', 'email', 'password', 'role', 'active', 'timemodified'];
+  const record = { timemodified: Date.now() };
+  for (const key of allowed) {
+    if (updates[key] !== undefined) record[key] = updates[key];
+  }
+  const { data, error } = await supabase
+    .from('users')
+    .update(record)
+    .eq('id', String(id))
+    .select()
+    .single();
   if (error) throw error;
   return data;
 }

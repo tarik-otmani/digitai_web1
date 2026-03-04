@@ -54,10 +54,10 @@ Return ONLY a valid JSON array of questions. Each question must have:
 
 CRITICAL: Return ONLY the JSON array, no markdown fences, no extra text.`;
 
-  const text = await generateContent(apikey, prompt, { temperature: 0.6, maxOutputTokens: 16384 });
+  const { text, usage } = await generateContent(apikey, prompt, { temperature: 0.6, maxOutputTokens: 16384 });
   const parsed = extractJsonFromResponse(text);
   const questions = Array.isArray(parsed) ? parsed : (parsed && typeof parsed === 'object' ? [parsed] : []);
-  return questions;
+  return { questions, usage };
 }
 
 /**
@@ -92,7 +92,8 @@ Return ONLY a valid JSON object (no array, no markdown). The object must have:
 
 CRITICAL: Return ONLY the JSON object, no markdown fences, no extra text.`;
 
-  const text = await generateContent(apikey, prompt, { temperature: 0.6, maxOutputTokens: 2048 });
+  const { text, usage } = await generateContent(apikey, prompt, { temperature: 0.6, maxOutputTokens: 2048 });
   const parsed = extractJsonFromResponse(text);
-  return parsed && typeof parsed === 'object' ? parsed : {};
+  const question = parsed && typeof parsed === 'object' ? parsed : {};
+  return { question, usage };
 }

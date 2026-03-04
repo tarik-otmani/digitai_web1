@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
     name TEXT,
+    role TEXT DEFAULT 'user',
+    active BOOLEAN DEFAULT true,
     timecreated BIGINT NOT NULL,
     timemodified BIGINT NOT NULL
 );
@@ -41,7 +43,18 @@ CREATE TABLE IF NOT EXISTS exams (
     timemodified BIGINT NOT NULL
 );
 
--- Enable Row Level Security (RLS) - Basic disable for now to ensure simple migration, 
+-- Token usage (per user, per AI operation)
+CREATE TABLE IF NOT EXISTS token_usage (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    operation TEXT NOT NULL,
+    prompt_tokens INTEGER DEFAULT 0,
+    completion_tokens INTEGER DEFAULT 0,
+    total_tokens INTEGER DEFAULT 0,
+    timecreated BIGINT NOT NULL
+);
+
+-- Enable Row Level Security (RLS) - Basic disable for now to ensure simple migration,
 -- but in production you should configure proper policies.
 ALTER TABLE users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE courses DISABLE ROW LEVEL SECURITY;

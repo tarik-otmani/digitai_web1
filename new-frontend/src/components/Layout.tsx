@@ -8,7 +8,8 @@ import {
   HelpCircle, 
   LogOut,
   Menu,
-  X
+  X,
+  Shield
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
@@ -33,6 +34,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Courses', href: '/courses', icon: BookOpen },
     { name: 'Exams', href: '/exams', icon: FileText },
     { name: 'Settings', href: '/settings', icon: Settings },
+    ...(user?.role === 'admin' ? [{ name: 'Admin', href: '/admin', icon: Shield }] : []),
   ];
 
   return (
