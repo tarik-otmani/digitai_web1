@@ -13,7 +13,7 @@ const MAX_INPUT_CHARS = 120000; // ~30k tokens, leave room for prompt
  * @param {string} [suggestedTitle] - Optional title (e.g. filename)
  * @returns {Promise<{ outline: object, sections: Array }>}
  */
-export async function structureUploadedContent(apikey, rawText, suggestedTitle = '') {
+export async function structureUploadedContent(rawText, suggestedTitle = '') {
   const rawContent = String(rawText || '').trim();
   if (!rawContent) throw new Error('No content to analyze');
 
@@ -61,7 +61,7 @@ CRITICAL:
 - Escape quotes and newlines properly in JSON strings.
 - Use \\n for line breaks inside content strings.`;
 
-  const { text, usage } = await generateContent(apikey, prompt, {
+  const { text, usage } = await generateContent(prompt, {
     temperature: 0.3,
     maxOutputTokens: 32768,
   });

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, 
   BookOpen, 
   FileText, 
-  Settings, 
+  Zap,
   HelpCircle, 
   LogOut,
   Menu,
@@ -33,7 +33,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Courses', href: '/courses', icon: BookOpen },
     { name: 'Exams', href: '/exams', icon: FileText },
-    { name: 'Settings', href: '/settings', icon: Settings },
+    { name: 'My Usage', href: '/settings', icon: Zap },
     ...(user?.role === 'admin' ? [{ name: 'Admin', href: '/admin', icon: Shield }] : []),
   ];
 

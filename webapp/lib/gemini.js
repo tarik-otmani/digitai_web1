@@ -1,17 +1,18 @@
 /**
- * Gemini API client for Node (matches plugin logic).
+ * Gemini API client for Node.
  */
-// Your key exposes 2.5/2.0 models only (no 1.5). Use gemini-2.5-flash; fallback to 2.0-flash-lite if quota issues.
+import { getGeminiApiKey } from './settingsStore.js';
+
 const BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const MODEL = 'gemini-2.5-flash';
 
-export function getApiKey() {
-  const key = process.env.GEMINI_API_KEY || '';
-  return key.trim();
-}
-
 export function getModel() {
   return MODEL;
+}
+
+/** Returns the server-side Gemini API key (DB first, env fallback). */
+export async function getApiKey() {
+  return getGeminiApiKey();
 }
 
 function extractText(response) {
@@ -70,9 +71,9 @@ function findMatchingBracket(str, openIndex, openChar, closeChar) {
   return -1;
 }
 
-export async function generateContent(apikey, prompt, config = {}, modelOverride = null) {
-  const key = (apikey || getApiKey()).trim();
-  if (!key) throw new Error('Gemini API key is required');
+export async function generateContent(prompt, config = {}) {
+  const key = await getApiKey();
+  if (!key) throw new Error('Gemini API key is not configured. Ask your admin to set it in the Admin Dashboard.');
 
   const model = MODEL;
   const payload = {

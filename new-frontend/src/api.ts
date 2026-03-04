@@ -1,20 +1,7 @@
 /**
- * DigiAI backend API client. Uses /api when served from same origin.
+ * DigiAI backend API client.
  */
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
-
-function getStoredApiKey(): string {
-  try {
-    return (localStorage.getItem('digitai_apikey') || '').trim();
-  } catch {
-    return '';
-  }
-}
-
-function authBody(): { apikey?: string } {
-  const key = getStoredApiKey();
-  return key ? { apikey: key } : {};
-}
 
 async function request<T>(
   path: string,
@@ -27,9 +14,7 @@ async function request<T>(
   const headers: Record<string, string> = {
     ...(rest.headers as Record<string, string>),
   };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+  if (token) headers['Authorization'] = `Bearer ${token}`;
 
   if (body && typeof body === 'object' && !(body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
@@ -41,11 +26,7 @@ async function request<T>(
   } else if (body) {
     finalBody = JSON.stringify(body);
   }
-  const res = await fetch(url, {
-    ...rest,
-    headers,
-    body: finalBody,
-  });
+  const res = await fetch(url, { ...rest, headers, body: finalBody });
   const text = await res.text();
   let data: T;
   try {
@@ -124,62 +105,28 @@ export async function postCoursesOutline(params: {
   level?: string;
   tone?: string;
 }): Promise<{ success: boolean; recordid: string; status: string; outlinejson: CourseOutline; message: string }> {
-  return request('/courses/outline', {
-    method: 'POST',
-    body: { ...authBody(), ...params },
-  });
+  return request('/courses/outline', { method: 'POST', body: params });
 }
 
 export async function postCoursesConfirmGeneration(id: string): Promise<{
-  success: boolean;
-  recordid: string;
-  status: string;
-  total_sections: number;
-  message: string;
+  success: boolean; recordid: string; status: string; total_sections: number; message: string;
 }> {
-  return request(`/courses/confirm-generation/${id}`, {
-    method: 'POST',
-    body: authBody(),
-  });
+  return request(`/courses/confirm-generation/${id}`, { method: 'POST', body: {} });
 }
 
 export async function postCoursesGenerate(params: {
-  topic: string;
-  keywords?: string;
-  level?: string;
-  tone?: string;
-}): Promise<{
-  success: boolean;
-  recordid: string;
-  status: string;
-  previewurl: string;
-  message: string;
-}> {
-  return request('/courses/generate', {
-    method: 'POST',
-    body: { ...authBody(), ...params },
-  });
+  topic: string; keywords?: string; level?: string; tone?: string;
+}): Promise<{ success: boolean; recordid: string; status: string; previewurl: string; message: string; }> {
+  return request('/courses/generate', { method: 'POST', body: params });
 }
 
 export async function postCoursesUpload(file: File, title?: string): Promise<{
-  success: boolean;
-  recordid: string;
-  status: string;
-  previewurl: string;
+  success: boolean; recordid: string; status: string; previewurl: string;
 }> {
   const form = new FormData();
   form.append('file', file);
   if (title) form.append('title', title);
-  const key = getStoredApiKey();
-  if (key) form.append('apikey', key);
-  const r = await request<{ success: boolean; recordid: string; status: string; previewurl: string }>(
-    '/courses/upload',
-    {
-      method: 'POST',
-      body: form as unknown as object,
-    }
-  );
-  return r;
+  return request('/courses/upload', { method: 'POST', body: form as unknown as object });
 }
 
 export async function deleteCourse(id: string): Promise<void> {
@@ -187,13 +134,10 @@ export async function deleteCourse(id: string): Promise<void> {
 }
 
 export async function postRegenerateSection(
-  courseId: string,
-  sectionIndex: number,
-  commentary?: string
+  courseId: string, sectionIndex: number, commentary?: string
 ): Promise<{ success: boolean; section: unknown }> {
   return request(`/courses/${courseId}/regenerate-section`, {
-    method: 'POST',
-    body: { ...authBody(), sectionIndex, commentary },
+    method: 'POST', body: { sectionIndex, commentary },
   });
 }
 
@@ -238,19 +182,10 @@ export async function getExam(id: string): Promise<Exam | null> {
 }
 
 export async function postExamsGenerate(params: {
-  course_ref_id: string;
-  num_questions?: number;
-  difficulty?: string;
-  pct_mcq?: number;
-  pct_truefalse?: number;
-  pct_shortanswer?: number;
-  pct_essay?: number;
-  example_questions?: string;
+  course_ref_id: string; num_questions?: number; difficulty?: string;
+  pct_mcq?: number; pct_truefalse?: number; pct_shortanswer?: number; pct_essay?: number; example_questions?: string;
 }): Promise<{ success: boolean; recordid: string; status: string; previewurl: string }> {
-  return request('/exams/generate', {
-    method: 'POST',
-    body: { ...authBody(), ...params },
-  });
+  return request('/exams/generate', { method: 'POST', body: params });
 }
 
 export async function patchExam(
@@ -265,13 +200,9 @@ export async function patchExam(
 }
 
 export async function postRegenerateQuestion(
-  examId: string,
-  questionIndex: number
+  examId: string, questionIndex: number
 ): Promise<{ success: boolean; question: ExamQuestion; questions: ExamQuestion[] }> {
-  return request(`/exams/${examId}/regenerate-question`, {
-    method: 'POST',
-    body: { ...authBody(), questionIndex },
-  });
+  return request(`/exams/${examId}/regenerate-question`, { method: 'POST', body: { questionIndex } });
 }
 
 export function getExamExportPdfUrl(id: string): string {
@@ -290,15 +221,6 @@ export async function getCourseStatus(id: string): Promise<{
   generation_progress?: string;
 }> {
   return request(`/status/course/${id}`);
-}
-
-export function getStoredApiKeyExport(): string {
-  return getStoredApiKey();
-}
-
-export function setStoredApiKey(key: string): void {
-  if (key) localStorage.setItem('digitai_apikey', key);
-  else localStorage.removeItem('digitai_apikey');
 }
 
 // ——— Auth ———
@@ -375,8 +297,34 @@ export async function patchAdminUser(
   userId: string,
   data: { active?: boolean; role?: string }
 ): Promise<{ success: boolean; user: AdminUser }> {
-  return request(`/admin/users/${userId}`, {
-    method: 'PATCH',
-    body: data,
-  });
+  return request(`/admin/users/${userId}`, { method: 'PATCH', body: data });
+}
+
+// ——— Admin: Gemini key ———
+export async function getAdminGeminiKey(): Promise<{ success: boolean; maskedKey: string; isSet: boolean }> {
+  return request('/admin/gemini-key');
+}
+
+export async function postAdminGeminiKey(apiKey: string): Promise<{ success: boolean; maskedKey: string }> {
+  return request('/admin/gemini-key', { method: 'POST', body: { apiKey } });
+}
+
+// ——— User: token usage ———
+export interface UsageRow {
+  operation: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  timecreated: number;
+}
+
+export interface UsageTotals {
+  prompt: number;
+  completion: number;
+  total: number;
+  estimatedCostUsd: number;
+}
+
+export async function getUsageMe(): Promise<{ success: boolean; rows: UsageRow[]; totals: UsageTotals }> {
+  return request('/usage/me');
 }

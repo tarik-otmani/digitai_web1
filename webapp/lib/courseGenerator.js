@@ -1,5 +1,5 @@
 /**
- * Course outline and section content generation (Gemini) — port from plugin.
+ * Course outline and section content generation (Gemini).
  */
 import { generateContent, extractJsonFromResponse } from './gemini.js';
 
@@ -8,7 +8,7 @@ export function normalizeSectionContent(content) {
   return content.replace(/\r\n/g, '\n').replace(/\\n/g, '\n').replace(/\\t/g, '\t');
 }
 
-export async function generateOutline(apikey, topic, keywords = [], level = 'intermediate', tone = 'professional') {
+export async function generateOutline(topic, keywords = [], level = 'intermediate', tone = 'professional') {
   const keywordsstr = keywords?.length ? keywords.join(', ') : 'general concepts';
   const prompt = `You are an expert course designer. Create a comprehensive course outline.
 
@@ -38,12 +38,12 @@ Return ONLY valid JSON with this structure:
 
 CRITICAL: Return ONLY the JSON object, no markdown fences, no extra text.`;
 
-  const { text, usage } = await generateContent(apikey, prompt, { temperature: 0.7, maxOutputTokens: 8192 });
+  const { text, usage } = await generateContent(prompt, { temperature: 0.7, maxOutputTokens: 8192 });
   const outline = extractJsonFromResponse(text);
   return { outline, usage };
 }
 
-export async function generateSectionContent(apikey, courseTitle, sectionTitle, sectionDescription, keyTopics = [], level = 'intermediate', tone = 'professional') {
+export async function generateSectionContent(courseTitle, sectionTitle, sectionDescription, keyTopics = [], level = 'intermediate', tone = 'professional') {
   const topicsstr = keyTopics?.length ? keyTopics.join(', ') : '';
   const prompt = `You are an expert educator writing course content.
 
@@ -74,7 +74,7 @@ Return ONLY valid JSON:
 
 CRITICAL: Return ONLY the JSON object, no markdown fences, no extra text.`;
 
-  const { text, usage } = await generateContent(apikey, prompt, { temperature: 0.7, maxOutputTokens: 16384 });
+  const { text, usage } = await generateContent(prompt, { temperature: 0.7, maxOutputTokens: 16384 });
   const data = extractJsonFromResponse(text);
   if (data?.content && typeof data.content === 'string') {
     data.content = normalizeSectionContent(data.content);
@@ -82,8 +82,8 @@ CRITICAL: Return ONLY the JSON object, no markdown fences, no extra text.`;
   return { content: data, usage };
 }
 
-export async function generateFullCourse(apikey, topic, keywords = [], level = 'intermediate', tone = 'professional') {
-  const outlineResult = await generateOutline(apikey, topic, keywords, level, tone);
+export async function generateFullCourse(topic, keywords = [], level = 'intermediate', tone = 'professional') {
+  const outlineResult = await generateOutline(topic, keywords, level, tone);
   const outline = outlineResult?.outline;
   if (!outline) return { success: false, error: 'Failed to generate outline' };
 
@@ -92,7 +92,6 @@ export async function generateFullCourse(apikey, topic, keywords = [], level = '
   const sectionsContent = [];
   for (const section of sections) {
     const sectionResult = await generateSectionContent(
-      apikey,
       outline.title ?? topic,
       section.title ?? 'Untitled Section',
       section.description ?? '',
@@ -108,32 +107,19 @@ export async function generateFullCourse(apikey, topic, keywords = [], level = '
         totalTokenCount: (totalUsage.totalTokenCount || 0) + (sectionResult.usage.totalTokenCount || 0),
       };
     }
-    if (content) {
-      sectionsContent.push(content);
-    } else {
-      sectionsContent.push({
-        title: section.title ?? 'Untitled Section',
-        content: `# ${section.title ?? 'Untitled Section'}\n\nContent generation failed for this section.`,
-        summary: section.description ?? '',
-        key_takeaways: [],
-        practice_questions: [],
-      });
-    }
+    sectionsContent.push(content || {
+      title: section.title ?? 'Untitled Section',
+      content: `# ${section.title ?? 'Untitled Section'}\n\nContent generation failed for this section.`,
+      summary: section.description ?? '',
+      key_takeaways: [],
+      practice_questions: [],
+    });
   }
 
-  return {
-    success: true,
-    outline,
-    sections: sectionsContent,
-    total_sections: sectionsContent.length,
-    totalUsage,
-  };
+  return { success: true, outline, sections: sectionsContent, total_sections: sectionsContent.length, totalUsage };
 }
 
-/**
- * Regenerate a single section with optional commentary (teacher feedback).
- */
-export async function regenerateSection(apikey, courseTitle, sectionData, commentary = '', level = 'intermediate', tone = 'professional') {
+export async function regenerateSection(courseTitle, sectionData, commentary = '', level = 'intermediate', tone = 'professional') {
   const prompt = `You are an expert educator. Regenerate the following course section based on teacher feedback.
 
 COURSE: ${courseTitle}
@@ -158,7 +144,7 @@ Return ONLY valid JSON with this structure:
 
 CRITICAL: Return ONLY the JSON object, no markdown fences, no extra text.`;
 
-  const { text, usage } = await generateContent(apikey, prompt, { temperature: 0.7, maxOutputTokens: 16384 });
+  const { text, usage } = await generateContent(prompt, { temperature: 0.7, maxOutputTokens: 16384 });
   const data = extractJsonFromResponse(text);
   if (data?.content && typeof data.content === 'string') {
     data.content = normalizeSectionContent(data.content);

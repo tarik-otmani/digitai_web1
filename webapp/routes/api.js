@@ -11,10 +11,10 @@ import { generateOutline, generateSectionContent, generateFullCourse, regenerate
 import { generateQuestions, generateSingleQuestion } from '../lib/examGenerator.js';
 import { extractText, isSupported } from '../lib/uploadParser.js';
 import { structureUploadedContent } from '../lib/uploadAnalyzer.js';
-import { getApiKey } from '../lib/gemini.js';
 import { buildCoursePdf, buildExamPdf } from '../lib/pdfGenerator.js';
 import * as userStore from '../lib/userStore.js';
 import * as usageStore from '../lib/usageStore.js';
+import * as settingsStore from '../lib/settingsStore.js';
 import { hashPassword, verifyPassword, signToken, verifyToken } from '../lib/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,10 +26,6 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 25 * 1024 * 1024 } }); // 25MB
 
 export const apiRouter = Router();
-
-function getApikey(req) {
-  return (req.body?.apikey || req.query?.apikey || getApiKey() || '').trim();
-}
 
 /**
  * Middleware to protect routes with JWT.
@@ -179,11 +175,10 @@ apiRouter.patch('/courses/:id', authenticate, async (req, res) => {
 
 apiRouter.post('/courses/outline', authenticate, async (req, res) => {
   try {
-    const apikey = getApikey(req);
     const { topic, keywords, level, tone } = req.body || {};
     if (!topic) return res.status(400).json({ success: false, error: 'topic required' });
     const kw = typeof keywords === 'string' ? keywords.split(',').map((k) => k.trim()).filter(Boolean) : [];
-    const outlineResult = await generateOutline(apikey, topic, kw, level || 'intermediate', tone || 'professional');
+    const outlineResult = await generateOutline(topic, kw, level || 'intermediate', tone || 'professional');
     const outline = outlineResult?.outline;
     if (outlineResult?.usage) await usageStore.recordUsage(req.user.id, 'course_outline', outlineResult.usage);
     const course = await store.addCourse({
@@ -210,7 +205,6 @@ apiRouter.post('/courses/outline', authenticate, async (req, res) => {
 
 apiRouter.post('/courses/confirm-generation/:id', authenticate, async (req, res) => {
   try {
-    const apikey = getApikey(req);
     const course = await store.getCourse(req.params.id, req.user.id);
     if (!course || course.status !== 'outline_generated') {
       return res.status(400).json({ success: false, error: 'Course not found or not in outline state' });
@@ -233,7 +227,6 @@ apiRouter.post('/courses/confirm-generation/:id', authenticate, async (req, res)
         const sec = sections[i];
         try {
           const sectionResult = await generateSectionContent(
-            apikey,
             outline.title ?? current.topic,
             sec.title ?? 'Section',
             sec.description ?? '',
@@ -293,11 +286,10 @@ apiRouter.post('/courses/confirm-generation/:id', authenticate, async (req, res)
 
 apiRouter.post('/courses/generate', authenticate, async (req, res) => {
   try {
-    const apikey = getApikey(req);
     const { topic, keywords, level, tone } = req.body || {};
     if (!topic) return res.status(400).json({ success: false, error: 'topic required' });
     const kw = typeof keywords === 'string' ? keywords.split(',').map((k) => k.trim()).filter(Boolean) : [];
-    const result = await generateFullCourse(apikey, topic, kw, level || 'intermediate', tone || 'professional');
+    const result = await generateFullCourse(topic, kw, level || 'intermediate', tone || 'professional');
     if (!result.success) return res.status(500).json({ success: false, error: result.error });
     if (result.totalUsage) await usageStore.recordUsage(req.user.id, 'course_full', result.totalUsage);
 
@@ -331,12 +323,8 @@ apiRouter.post('/courses/upload', authenticate, upload.single('file'), async (re
     if (!isSupported(req.file.originalname)) {
       return res.status(400).json({ success: false, error: 'Unsupported format. Use PDF, DOCX, TXT, or MD.' });
     }
-    const apikey = getApikey(req);
-    if (!apikey) {
-      return res.status(400).json({ success: false, error: 'API key required. Set your Gemini API key in Settings to structure uploaded content into sections.' });
-    }
     const fileContent = await extractText(req.file.path, req.file.originalname);
-    const uploadResult = await structureUploadedContent(apikey, fileContent, suggestedTitle);
+    const uploadResult = await structureUploadedContent(fileContent, suggestedTitle);
     const { outline, sections, usage } = uploadResult;
     if (usage) await usageStore.recordUsage(req.user.id, 'upload_structure', usage);
     const contentData = { outline, sections };
@@ -372,7 +360,6 @@ apiRouter.delete('/courses/:id', authenticate, async (req, res) => {
 // Regenerate a single section (optional commentary).
 apiRouter.post('/courses/:id/regenerate-section', authenticate, async (req, res) => {
   try {
-    const apikey = getApikey(req);
     const course = await store.getCourse(req.params.id, req.user.id);
     if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
     const { sectionIndex, commentary } = req.body || {};
@@ -387,7 +374,6 @@ apiRouter.post('/courses/:id/regenerate-section', authenticate, async (req, res)
     const courseTitle = data.outline?.title || course.topic || 'Course';
     const sectionData = sections[idx];
     const regenResult = await regenerateSection(
-      apikey,
       courseTitle,
       sectionData,
       commentary || '',
@@ -451,7 +437,6 @@ apiRouter.get('/exams/:id', authenticate, async (req, res) => {
 
 apiRouter.post('/exams/generate', authenticate, async (req, res) => {
   try {
-    const apikey = getApikey(req);
     const { course_ref_id, num_questions, difficulty, pct_mcq, pct_truefalse, pct_shortanswer, pct_essay, example_questions } = req.body || {};
     if (!course_ref_id) return res.status(400).json({ success: false, error: 'course_ref_id required' });
     const course = await store.getCourse(course_ref_id, req.user.id);
@@ -469,7 +454,6 @@ apiRouter.post('/exams/generate', authenticate, async (req, res) => {
 
     const num = Math.min(50, Math.max(5, parseInt(num_questions, 10) || 20));
     const examResult = await generateQuestions(
-      apikey,
       course.topic,
       courseText,
       num,
@@ -522,7 +506,6 @@ apiRouter.post('/exams/:id/update', authenticate, updateExamQuestions);
 
 apiRouter.post('/exams/:id/regenerate-question', authenticate, async (req, res) => {
   try {
-    const apikey = getApikey(req);
     const exam = await store.getExam(req.params.id, req.user.id);
     if (!exam) return res.status(404).json({ success: false, error: 'Exam not found' });
     const { questionIndex } = req.body || {};
@@ -551,7 +534,7 @@ apiRouter.post('/exams/:id/regenerate-question', authenticate, async (req, res) 
     const existing = questions[idx];
     const qType = existing?.type || 'mcq';
     const difficulty = exam.difficulty || 'mixed';
-    const singleResult = await generateSingleQuestion(apikey, course.topic, courseText, qType, difficulty);
+    const singleResult = await generateSingleQuestion(course.topic, courseText, qType, difficulty);
     const newQuestion = singleResult?.question;
     if (!newQuestion || !newQuestion.question) return res.status(500).json({ success: false, error: 'Regeneration failed' });
     if (singleResult?.usage) await usageStore.recordUsage(req.user.id, 'exam_regenerate_question', singleResult.usage);
@@ -695,6 +678,40 @@ apiRouter.patch('/admin/users/:id', authenticateAdmin, async (req, res) => {
     }
     const user = await userStore.updateUser(req.params.id, updates);
     res.json({ success: true, user: { id: user.id, email: user.email, name: user.name, role: user.role || 'user', active: user.active !== false } });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ——— Admin: Gemini API key management ———
+apiRouter.get('/admin/gemini-key', authenticateAdmin, async (req, res) => {
+  try {
+    const masked = await settingsStore.getMaskedGeminiKey();
+    res.json({ success: true, maskedKey: masked, isSet: masked.length > 0 });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+apiRouter.post('/admin/gemini-key', authenticateAdmin, async (req, res) => {
+  try {
+    const { apiKey } = req.body || {};
+    if (!apiKey || typeof apiKey !== 'string' || !apiKey.trim()) {
+      return res.status(400).json({ success: false, error: 'apiKey is required' });
+    }
+    await settingsStore.setGeminiApiKey(apiKey, req.user.id);
+    const masked = await settingsStore.getMaskedGeminiKey();
+    res.json({ success: true, maskedKey: masked });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ——— User: token usage & cost ———
+apiRouter.get('/usage/me', authenticate, async (req, res) => {
+  try {
+    const data = await settingsStore.getUserTokenStats(req.user.id);
+    res.json({ success: true, ...data });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }

@@ -1,5 +1,5 @@
 /**
- * Exam question generation from course content (Gemini) — port from plugin.
+ * Exam question generation from course content (Gemini).
  */
 import { generateContent, extractJsonFromResponse } from './gemini.js';
 
@@ -7,7 +7,6 @@ function calculateDistribution(numQuestions, percentages = {}) {
   const pctMcq = percentages.pct_mcq ?? 50;
   const pctTf = percentages.pct_truefalse ?? 20;
   const pctSa = percentages.pct_shortanswer ?? 20;
-  const pctEssay = percentages.pct_essay ?? 10;
   const n = numQuestions;
   return {
     mcq: Math.round((n * pctMcq) / 100),
@@ -17,7 +16,7 @@ function calculateDistribution(numQuestions, percentages = {}) {
   };
 }
 
-export async function generateQuestions(apikey, courseTitle, courseContent, numQuestions = 20, difficulty = 'mixed', exampleQuestions = '', percentages = {}, examType = 'moodle') {
+export async function generateQuestions(courseTitle, courseContent, numQuestions = 20, difficulty = 'mixed', exampleQuestions = '', percentages = {}, examType = 'moodle') {
   const contentPreview = (courseContent || '').slice(0, 8000);
   const dist = calculateDistribution(numQuestions, percentages);
   const examplesBlock = (exampleQuestions || '').trim();
@@ -32,7 +31,6 @@ COURSE CONTENT:
 ${contentPreview}
 
 ${examplesPrompt}
-
 REQUIRED DISTRIBUTION:
 - Multiple choice (MCQ): ${dist.mcq} questions
 - True/False: ${dist.truefalse} questions
@@ -54,17 +52,13 @@ Return ONLY a valid JSON array of questions. Each question must have:
 
 CRITICAL: Return ONLY the JSON array, no markdown fences, no extra text.`;
 
-  const { text, usage } = await generateContent(apikey, prompt, { temperature: 0.6, maxOutputTokens: 16384 });
+  const { text, usage } = await generateContent(prompt, { temperature: 0.6, maxOutputTokens: 16384 });
   const parsed = extractJsonFromResponse(text);
   const questions = Array.isArray(parsed) ? parsed : (parsed && typeof parsed === 'object' ? [parsed] : []);
   return { questions, usage };
 }
 
-/**
- * Generate a single question of the given type (for regenerate).
- * @returns {Promise<object>} One question object.
- */
-export async function generateSingleQuestion(apikey, courseTitle, courseContent, questionType = 'mcq', difficulty = 'mixed') {
+export async function generateSingleQuestion(courseTitle, courseContent, questionType = 'mcq', difficulty = 'mixed') {
   const contentPreview = (courseContent || '').slice(0, 6000);
   const typeLabel = { mcq: 'Multiple choice', truefalse: 'True/False', shortanswer: 'Short answer', essay: 'Essay' }[questionType] || questionType;
 
@@ -92,7 +86,7 @@ Return ONLY a valid JSON object (no array, no markdown). The object must have:
 
 CRITICAL: Return ONLY the JSON object, no markdown fences, no extra text.`;
 
-  const { text, usage } = await generateContent(apikey, prompt, { temperature: 0.6, maxOutputTokens: 2048 });
+  const { text, usage } = await generateContent(prompt, { temperature: 0.6, maxOutputTokens: 2048 });
   const parsed = extractJsonFromResponse(text);
   const question = parsed && typeof parsed === 'object' ? parsed : {};
   return { question, usage };
