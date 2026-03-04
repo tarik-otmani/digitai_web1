@@ -1,22 +1,13 @@
 /**
- * AI generation client.
- * Currently pointed at LiteLLM proxy (OpenAI-compatible).
- * To revert to Gemini: set USE_LITELLM=false and restore the Gemini block.
+ * Gemini API client for Node.
  */
 import { getGeminiApiKey } from './settingsStore.js';
 
-// ——— LiteLLM config (temporary, for testing) ———
-const USE_LITELLM = true;
-const LITELLM_BASE = 'http://10.0.4.142:4000';
-const LITELLM_API_KEY = 'sk--copC0-jvpdt20vApX89-Q';
-const LITELLM_MODEL = 'openai/gpt-5.2';
-
-// ——— Gemini config (production) ———
-const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const BASE = 'https://generativelanguage.googleapis.com/v1beta';
+const MODEL = 'gemini-2.5-flash';
 
 export function getModel() {
-  return USE_LITELLM ? LITELLM_MODEL : GEMINI_MODEL;
+  return MODEL;
 }
 
 /** Returns the server-side Gemini API key (DB first, env fallback). */
@@ -81,43 +72,10 @@ function findMatchingBracket(str, openIndex, openChar, closeChar) {
 }
 
 export async function generateContent(prompt, config = {}) {
-  if (USE_LITELLM) {
-    // ——— LiteLLM / OpenAI-compatible path ———
-    const payload = {
-      model: LITELLM_MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: config.temperature ?? 0.7,
-      max_tokens: config.maxOutputTokens ?? 8192,
-    };
-
-    const res = await fetch(`${LITELLM_BASE}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${LITELLM_API_KEY}`,
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(120000),
-    });
-    const data = await res.json();
-    if (res.status !== 200) {
-      throw new Error(data?.error?.message || `HTTP ${res.status}`);
-    }
-    const text = data.choices?.[0]?.message?.content ?? '';
-    if (!text) throw new Error('Empty response from LiteLLM');
-    const u = data.usage || {};
-    const usage = {
-      promptTokenCount: u.prompt_tokens ?? 0,
-      candidatesTokenCount: u.completion_tokens ?? 0,
-      totalTokenCount: u.total_tokens ?? (u.prompt_tokens ?? 0) + (u.completion_tokens ?? 0),
-    };
-    return { text, usage };
-  }
-
-  // ——— Gemini path ———
   const key = await getApiKey();
   if (!key) throw new Error('Gemini API key is not configured. Ask your admin to set it in the Admin Dashboard.');
 
+  const model = MODEL;
   const payload = {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: {
@@ -127,7 +85,7 @@ export async function generateContent(prompt, config = {}) {
     },
   };
 
-  const url = `${GEMINI_BASE}/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(key)}`;
+  const url = `${BASE}/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
