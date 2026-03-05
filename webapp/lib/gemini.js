@@ -4,7 +4,7 @@
 import { getGeminiApiKey } from './settingsStore.js';
 
 const BASE = 'https://generativelanguage.googleapis.com/v1beta';
-const MODEL = 'gemini-2.5-flash';
+const MODEL = 'gemini-2.5-pro';
 
 export function getModel() {
   return MODEL;

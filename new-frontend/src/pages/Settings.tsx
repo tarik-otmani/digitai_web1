@@ -107,7 +107,7 @@ export default function Settings() {
       </div>
 
       <p className="text-xs text-gray-400 text-center">
-        Cost estimate based on Gemini 2.5 Flash pricing: $0.075/1M input tokens · $0.30/1M output tokens.
+        Cost estimate based on Gemini 2.5 Pro pricing: $1.25/1M input tokens · $10.00/1M output tokens.
       </p>
     </div>
   );

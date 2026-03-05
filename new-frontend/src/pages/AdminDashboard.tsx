@@ -16,8 +16,8 @@ function formatTokens(n: number) {
 }
 
 function estimateCost(tokens: number) {
-  // Rough estimate using blended Gemini 2.5 Flash rate ~$0.15/1M total tokens
-  const usd = (tokens / 1_000_000) * 0.15;
+  // Gemini 2.5 Pro blended estimate ~$3/1M total tokens
+  const usd = (tokens / 1_000_000) * 3.0;
   if (usd < 0.001) return '<$0.001';
   return `$${usd.toFixed(4)}`;
 }

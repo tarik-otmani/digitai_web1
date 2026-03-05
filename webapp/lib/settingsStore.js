@@ -85,7 +85,8 @@ export async function getUserTokenStats(userId) {
     totalAll += Number(r.total_tokens) || 0;
   }
 
-  const estimatedCostUsd = (totalPrompt / 1_000_000) * 0.075 + (totalCompletion / 1_000_000) * 0.30;
+  // Gemini 2.5 Pro pricing: $1.25/1M input tokens, $10.00/1M output tokens (prompts ≤200k)
+  const estimatedCostUsd = (totalPrompt / 1_000_000) * 1.25 + (totalCompletion / 1_000_000) * 10.0;
 
   return {
     rows: (data || []).slice(0, 50),
