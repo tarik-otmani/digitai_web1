@@ -215,10 +215,20 @@ export async function deleteExam(id: string): Promise<void> {
 }
 
 // ——— Status ———
+export interface GeneratedSection {
+  title: string;
+  content: string;
+  summary?: string;
+  key_takeaways?: string[];
+  practice_questions?: string[];
+}
+
 export async function getCourseStatus(id: string): Promise<{
   success: boolean;
   status: string;
   generation_progress?: string;
+  outline?: CourseOutline;
+  sections_partial?: GeneratedSection[];
 }> {
   return request(`/status/course/${id}`);
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, GripVertical, Trash2, Plus, ArrowRight, Pencil } from 'lucide-react';
-import { getCourse, patchCourse, postCoursesConfirmGeneration, getCourseStatus, type Course, type CourseOutline, type OutlineSection } from '../api';
+import { getCourse, patchCourse, postCoursesConfirmGeneration, type Course, type CourseOutline, type OutlineSection } from '../api';
 
 export default function EditOutline() {
   const location = useLocation();
@@ -12,7 +12,6 @@ export default function EditOutline() {
   const [title, setTitle] = useState('');
   const [loading, setLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [generationProgress, setGenerationProgress] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -69,7 +68,6 @@ export default function EditOutline() {
     if (!courseId || !course) return;
     setError('');
     setConfirming(true);
-    setGenerationProgress('0/' + sections.length);
     try {
       const outline: CourseOutline = {
         title: title || course.topic,
@@ -81,26 +79,10 @@ export default function EditOutline() {
       };
       await patchCourse(courseId, { outline_json: outline });
       await postCoursesConfirmGeneration(courseId);
-      const poll = async () => {
-        try {
-          const st = await getCourseStatus(courseId);
-          if (st.generation_progress) setGenerationProgress(st.generation_progress);
-          if (st.status === 'generated') {
-            navigate(`/course-editor/${courseId}`);
-            return;
-          }
-          if (st.status === 'generating') {
-            setTimeout(poll, 2000);
-          }
-        } catch {
-          setTimeout(poll, 2000);
-        }
-      };
-      setTimeout(poll, 500);
+      navigate('/generating-course', { state: { courseId } });
     } catch (err) {
       setError((err as Error).message);
       setConfirming(false);
-      setGenerationProgress(null);
     }
   };
 
@@ -167,30 +149,6 @@ export default function EditOutline() {
           </div>
         </div>
       </div>
-
-      {confirming && (
-        <div className="mb-6 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-indigo-800">Generating section content...</span>
-            <span className="text-sm text-indigo-600">
-              Section {generationProgress ? generationProgress.replace('/', ' of ') : '0 of ' + sections.length}
-            </span>
-          </div>
-          <div className="h-2 bg-indigo-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-indigo-500 rounded-full transition-all duration-500"
-              style={{
-                width: generationProgress
-                  ? (() => {
-                      const [curr, total] = generationProgress.split('/').map(Number);
-                      return total ? `${(curr / total) * 100}%` : '0%';
-                    })()
-                  : '0%',
-              }}
-            />
-          </div>
-        </div>
-      )}
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-700 text-sm">{error}</div>

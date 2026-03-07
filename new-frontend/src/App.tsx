@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import GenerateCourse from './pages/GenerateCourse';
+import GeneratingCourse from './pages/GeneratingCourse';
 import EditOutline from './pages/EditOutline';
 import CourseEditor from './pages/CourseEditor';
 import GenerateExam from './pages/GenerateExam';
@@ -60,6 +61,7 @@ export default function App() {
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/generate-course" element={<GenerateCourse />} />
                 <Route path="/edit-outline" element={<EditOutline />} />
+                <Route path="/generating-course" element={<GeneratingCourse />} />
                 <Route path="/course-editor/:id" element={<CourseEditor />} />
                 <Route path="/generate-exam" element={<GenerateExam />} />
                 <Route path="/upload-course" element={<UploadCourse />} />

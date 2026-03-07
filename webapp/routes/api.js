@@ -257,6 +257,7 @@ apiRouter.post('/courses/confirm-generation/:id', authenticate, async (req, res)
         current = await store.getCourse(courseId, ownerId);
         if (!current) return;
         current.generation_progress = `${i + 1}/${sections.length}`;
+        current.sections_partial = sectionsContent;
         await store.saveCourse(current);
       }
       current = await store.getCourse(courseId, ownerId);
@@ -267,6 +268,7 @@ apiRouter.post('/courses/confirm-generation/:id', authenticate, async (req, res)
       current.status = 'generated';
       current.content_json = { outline, sections: sectionsContent };
       current.generation_progress = `${sections.length}/${sections.length}`;
+      current.sections_partial = null;
       await store.saveCourse(current);
       console.log(`Finished generation for course ${courseId}.`);
     };
@@ -581,7 +583,15 @@ apiRouter.get('/status/course/:id', authenticate, async (req, res) => {
   try {
     const course = await store.getCourse(req.params.id, req.user.id);
     if (!course) return res.status(404).json({ success: false });
-    res.json({ success: true, status: course.status, generation_progress: course.generation_progress });
+    const outline = course.outline_json || null;
+    const sectionsPartial = course.sections_partial || null;
+    res.json({
+      success: true,
+      status: course.status,
+      generation_progress: course.generation_progress,
+      outline,
+      sections_partial: sectionsPartial,
+    });
   } catch (e) {
     res.status(500).json({ success: false });
   }
