@@ -35,8 +35,11 @@ async function request<T>(
     throw new Error(res.ok ? text || 'Empty response' : text || `HTTP ${res.status}`);
   }
   if (!res.ok) {
-    const err = (data as { error?: string })?.error || text || `HTTP ${res.status}`;
-    throw new Error(err);
+    const body = data as { error?: string; used?: number; limit?: number; planName?: string };
+    const err = body?.error || text || `HTTP ${res.status}`;
+    const e = new Error(err) as Error & { apiData?: typeof body };
+    e.apiData = body;
+    throw e;
   }
   return data;
 }

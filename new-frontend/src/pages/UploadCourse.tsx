@@ -3,9 +3,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Upload, File, X } from 'lucide-react';
 import clsx from 'clsx';
 import { postCoursesUpload } from '../api';
+import QuotaModal from '../components/QuotaModal';
 
 const ACCEPT = '.pdf,.docx,.doc,.txt,.md';
 const MAX_SIZE = 25 * 1024 * 1024; // 25MB
+
+interface QuotaInfo { used: number; limit: number; planName: string }
 
 export default function UploadCourse() {
   const navigate = useNavigate();
@@ -14,6 +17,7 @@ export default function UploadCourse() {
   const [title, setTitle] = useState('');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [quotaInfo, setQuotaInfo] = useState<QuotaInfo | null>(null);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -49,14 +53,32 @@ export default function UploadCourse() {
     try {
       const res = await postCoursesUpload(file, title.trim() || undefined);
       navigate(`/course/${res.recordid}`);
-    } catch (err) {
-      setError((err as Error).message);
+    } catch (err: unknown) {
+      const e = err as Error & { apiData?: { used?: number; limit?: number; planName?: string } };
+      if (e.message === 'QUOTA_EXCEEDED') {
+        setQuotaInfo({
+          used: e.apiData?.used ?? 0,
+          limit: e.apiData?.limit ?? 0,
+          planName: e.apiData?.planName ?? '',
+        });
+        return;
+      }
+      setError(e.message);
     } finally {
       setUploading(false);
     }
   };
 
   return (
+    <>
+    {quotaInfo && (
+      <QuotaModal
+        used={quotaInfo.used}
+        limit={quotaInfo.limit}
+        planName={quotaInfo.planName}
+        onClose={() => setQuotaInfo(null)}
+      />
+    )}
     <div className="max-w-3xl mx-auto">
       <Link to="/dashboard" className="flex items-center text-gray-500 hover:text-gray-900 mb-6 transition-colors">
         <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
@@ -162,5 +184,6 @@ export default function UploadCourse() {
         </div>
       </div>
     </div>
+    </>
   );
 }

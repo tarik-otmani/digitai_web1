@@ -3,6 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Sparkles } from 'lucide-react';
 import clsx from 'clsx';
 import { postCoursesOutline } from '../api';
+import QuotaModal from '../components/QuotaModal';
+
+interface QuotaInfo { used: number; limit: number; planName: string }
 
 export default function GenerateCourse() {
   const navigate = useNavigate();
@@ -13,6 +16,7 @@ export default function GenerateCourse() {
   const [instructions, setInstructions] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [quotaInfo, setQuotaInfo] = useState<QuotaInfo | null>(null);
 
   const handleGenerateOutline = async () => {
     if (!topic.trim()) return;
@@ -26,14 +30,32 @@ export default function GenerateCourse() {
         tone,
       });
       navigate('/edit-outline', { state: { courseId: res.recordid } });
-    } catch (err) {
-      setError((err as Error).message);
+    } catch (err: unknown) {
+      const e = err as Error & { apiData?: { used?: number; limit?: number; planName?: string } };
+      if (e.message === 'QUOTA_EXCEEDED') {
+        setQuotaInfo({
+          used: e.apiData?.used ?? 0,
+          limit: e.apiData?.limit ?? 0,
+          planName: e.apiData?.planName ?? '',
+        });
+        return;
+      }
+      setError(e.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
+    <>
+    {quotaInfo && (
+      <QuotaModal
+        used={quotaInfo.used}
+        limit={quotaInfo.limit}
+        planName={quotaInfo.planName}
+        onClose={() => setQuotaInfo(null)}
+      />
+    )}
     <div className="max-w-3xl mx-auto">
       <Link to="/dashboard" className="flex items-center text-gray-500 hover:text-gray-900 mb-6 transition-colors">
         <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
@@ -143,5 +165,6 @@ export default function GenerateCourse() {
         </div>
       </div>
     </div>
+    </>
   );
 }

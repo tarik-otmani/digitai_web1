@@ -177,6 +177,10 @@ apiRouter.patch('/courses/:id', authenticate, async (req, res) => {
 
 apiRouter.post('/courses/outline', authenticate, async (req, res) => {
   try {
+    const quota = await billingStore.checkCourseQuota(req.user.id);
+    if (!quota.allowed) {
+      return res.status(403).json({ success: false, error: 'QUOTA_EXCEEDED', used: quota.used, limit: quota.quota, planName: quota.planName });
+    }
     const { topic, keywords, level, tone } = req.body || {};
     if (!topic) return res.status(400).json({ success: false, error: 'topic required' });
     const kw = typeof keywords === 'string' ? keywords.split(',').map((k) => k.trim()).filter(Boolean) : [];
@@ -290,6 +294,10 @@ apiRouter.post('/courses/confirm-generation/:id', authenticate, async (req, res)
 
 apiRouter.post('/courses/generate', authenticate, async (req, res) => {
   try {
+    const quota = await billingStore.checkCourseQuota(req.user.id);
+    if (!quota.allowed) {
+      return res.status(403).json({ success: false, error: 'QUOTA_EXCEEDED', used: quota.used, limit: quota.limit, planName: quota.planName });
+    }
     const { topic, keywords, level, tone } = req.body || {};
     if (!topic) return res.status(400).json({ success: false, error: 'topic required' });
     const kw = typeof keywords === 'string' ? keywords.split(',').map((k) => k.trim()).filter(Boolean) : [];
@@ -322,6 +330,10 @@ apiRouter.post('/courses/generate', authenticate, async (req, res) => {
 
 apiRouter.post('/courses/upload', authenticate, upload.single('file'), async (req, res) => {
   try {
+    const quota = await billingStore.checkCourseQuota(req.user.id);
+    if (!quota.allowed) {
+      return res.status(403).json({ success: false, error: 'QUOTA_EXCEEDED', used: quota.used, limit: quota.quota, planName: quota.planName });
+    }
     if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
     const suggestedTitle = req.body?.title || req.file.originalname?.replace(/\.[^.]+$/, '') || 'Uploaded course';
     if (!isSupported(req.file.originalname)) {

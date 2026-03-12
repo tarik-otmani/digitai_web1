@@ -53,6 +53,29 @@ function startOfMonth() {
 import { supabase } from './supabase.js';
 
 /**
+ * Check if a user is allowed to generate a new course this month.
+ * Returns { allowed: true } or { allowed: false, used, quota, planName }
+ */
+export async function checkCourseQuota(userId) {
+  const billing = await getUserBilling(userId);
+  const { usage, plan, planId } = billing;
+
+  // Unlimited plans
+  if (usage.coursesQuota === null) return { allowed: true };
+
+  if (usage.coursesThisMonth >= usage.coursesQuota) {
+    return {
+      allowed: false,
+      used: usage.coursesThisMonth,
+      quota: usage.coursesQuota,
+      planId,
+      planName: plan.name,
+    };
+  }
+  return { allowed: true };
+}
+
+/**
  * Get billing info for a user:
  * - their plan
  * - courses generated this month
