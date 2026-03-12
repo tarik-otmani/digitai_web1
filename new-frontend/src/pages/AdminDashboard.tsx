@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import {
   Users, BookOpen, FileText, Zap, RefreshCw, ToggleLeft, ToggleRight,
-  Shield, User as UserIcon, Key, Save, Eye, EyeOff, DollarSign,
+  Shield, User as UserIcon, Key, Save, Eye, EyeOff, DollarSign, Star,
 } from 'lucide-react';
 import {
   getAdminStats, getAdminUsers, patchAdminUser,
   getAdminGeminiKey, postAdminGeminiKey,
-  type AdminStats as AdminStatsType, type AdminUser,
+  getAdminFeedbackStats,
+  type AdminStats as AdminStatsType, type AdminUser, type FeedbackStats,
 } from '../api';
 
 function formatTokens(n: number) {
@@ -121,6 +122,7 @@ function GeminiKeyEditor() {
 export default function AdminDashboard() {
   const [stats, setStats] = useState<AdminStatsType | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [feedbackStats, setFeedbackStats] = useState<FeedbackStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -129,9 +131,10 @@ export default function AdminDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const [statsRes, usersList] = await Promise.all([getAdminStats(), getAdminUsers()]);
+      const [statsRes, usersList, fbStats] = await Promise.all([getAdminStats(), getAdminUsers(), getAdminFeedbackStats()]);
       setStats(statsRes);
       setUsers(usersList);
+      setFeedbackStats(fbStats);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -196,12 +199,13 @@ export default function AdminDashboard() {
 
       {/* Stats cards */}
       {stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {[
             { icon: <Users className="w-5 h-5 text-indigo-600" />, bg: 'bg-indigo-100', label: 'Users', value: stats.stats.usersCount },
             { icon: <BookOpen className="w-5 h-5 text-emerald-600" />, bg: 'bg-emerald-100', label: 'Courses', value: stats.stats.coursesCount },
             { icon: <FileText className="w-5 h-5 text-amber-600" />, bg: 'bg-amber-100', label: 'Exams', value: stats.stats.examsCount },
             { icon: <Zap className="w-5 h-5 text-violet-600" />, bg: 'bg-violet-100', label: 'Total Tokens', value: formatTokens(stats.stats.totalTokens) },
+            { icon: <Star className="w-5 h-5 text-amber-500" />, bg: 'bg-amber-100', label: 'Avg Rating', value: feedbackStats && feedbackStats.totalRatings > 0 ? `${feedbackStats.averageRating} / 5` : '—' },
           ].map((card) => (
             <div key={card.label} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
               <div className="flex items-center gap-3">
@@ -318,6 +322,63 @@ export default function AdminDashboard() {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* Feedback stats */}
+      {feedbackStats && feedbackStats.totalRatings > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+            <Star className="w-4 h-4 text-amber-500" />
+            <h2 className="text-base font-semibold text-gray-900">User Feedback</h2>
+            <span className="ml-auto text-xs text-gray-400">{feedbackStats.totalRatings} rating{feedbackStats.totalRatings !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="p-5 space-y-4">
+            {/* Average + distribution */}
+            <div className="flex items-center gap-6">
+              <div className="text-center">
+                <p className="text-4xl font-bold text-gray-900">{feedbackStats.averageRating}</p>
+                <div className="flex items-center justify-center gap-0.5 mt-1">
+                  {[1,2,3,4,5].map((s) => (
+                    <Star key={s} className={`w-3.5 h-3.5 ${s <= Math.round(feedbackStats.averageRating) ? 'fill-amber-400 text-amber-400' : 'fill-transparent text-gray-300'}`} />
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 mt-1">out of 5</p>
+              </div>
+              <div className="flex-1 space-y-1.5">
+                {[5,4,3,2,1].map((star) => {
+                  const count = feedbackStats.distribution[star] ?? 0;
+                  const pct = feedbackStats.totalRatings > 0 ? Math.round((count / feedbackStats.totalRatings) * 100) : 0;
+                  return (
+                    <div key={star} className="flex items-center gap-2 text-xs">
+                      <span className="w-3 text-right text-gray-500">{star}</span>
+                      <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
+                      <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="w-8 text-gray-400">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Recent comments */}
+            {feedbackStats.recentComments.length > 0 && (
+              <div className="border-t border-gray-100 pt-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Recent Comments</p>
+                {feedbackStats.recentComments.map((c, i) => (
+                  <div key={i} className="flex items-start gap-3 text-sm">
+                    <div className="flex gap-0.5 shrink-0 mt-0.5">
+                      {[1,2,3,4,5].map((s) => (
+                        <Star key={s} className={`w-3 h-3 ${s <= c.rating ? 'fill-amber-400 text-amber-400' : 'fill-transparent text-gray-200'}`} />
+                      ))}
+                    </div>
+                    <p className="text-gray-700 flex-1">{c.comment}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

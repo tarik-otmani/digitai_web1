@@ -338,3 +338,36 @@ export interface UsageTotals {
 export async function getUsageMe(): Promise<{ success: boolean; rows: UsageRow[]; totals: UsageTotals }> {
   return request('/usage/me');
 }
+
+// ——— Feedback ———
+export interface CourseFeedback {
+  id?: string;
+  course_id: string;
+  user_id: string;
+  rating: number;
+  comment: string;
+  timecreated: number;
+}
+
+export interface FeedbackStats {
+  averageRating: number;
+  totalRatings: number;
+  distribution: Record<string, number>;
+  recentComments: { rating: number; comment: string; userId: string; courseId: string; timecreated: number }[];
+}
+
+export async function postCourseFeedback(
+  courseId: string,
+  rating: number,
+  comment?: string
+): Promise<{ success: boolean; feedback: CourseFeedback }> {
+  return request(`/courses/${courseId}/feedback`, { method: 'POST', body: { rating, comment: comment || '' } });
+}
+
+export async function getCourseFeedback(courseId: string): Promise<{ success: boolean; feedback: CourseFeedback | null }> {
+  return request(`/courses/${courseId}/feedback`);
+}
+
+export async function getAdminFeedbackStats(): Promise<{ success: boolean } & FeedbackStats> {
+  return request('/admin/feedback-stats');
+}

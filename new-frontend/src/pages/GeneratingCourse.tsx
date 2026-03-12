@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { CheckCircle2, Loader2, BookOpen, ArrowRight, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { getCourseStatus, type GeneratedSection, type CourseOutline } from '../api';
+import FeedbackModal from '../components/FeedbackModal';
 
 interface SectionState {
   title: string;
@@ -20,6 +21,7 @@ export default function GeneratingCourse() {
   const [doneCount, setDoneCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [finished, setFinished] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevDoneRef = useRef(0);
@@ -87,6 +89,8 @@ export default function GeneratingCourse() {
 
         if (st.status === 'generated') {
           setFinished(true);
+          // Show feedback modal 1.5s after completion so the user sees the "ready" banner first
+          setTimeout(() => setShowFeedback(true), 1500);
           return;
         }
 
@@ -106,6 +110,13 @@ export default function GeneratingCourse() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      {showFeedback && courseId && (
+        <FeedbackModal
+          courseId={courseId}
+          courseTitle={outline?.title}
+          onClose={() => setShowFeedback(false)}
+        />
+      )}
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 text-indigo-600 font-semibold text-sm mb-1">

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, RefreshCw, Eye, Pencil, ChevronDown, ChevronUp } from 'lucide-react';
 import { getCourse, patchCourse, postRegenerateSection, type Course } from '../api';
+import FeedbackModal from '../components/FeedbackModal';
 
 interface SectionData {
   title: string;
@@ -53,6 +54,8 @@ export default function CourseEditor() {
   const [content, setContent] = useState<CourseContent | null>(null);
   const [editingSection, setEditingSection] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackShownOnce, setFeedbackShownOnce] = useState(false);
   const [regenerating, setRegenerating] = useState<number | null>(null);
   const [commentary, setCommentary] = useState<Record<number, string>>({});
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
@@ -79,6 +82,11 @@ export default function CourseEditor() {
     try {
       await patchCourse(id, { content_json: content });
       setEditingSection(null);
+      // Show feedback modal once per session after the first save
+      if (!feedbackShownOnce) {
+        setShowFeedback(true);
+        setFeedbackShownOnce(true);
+      }
     } catch (err) {
       alert((err as Error).message);
     } finally {
@@ -132,6 +140,13 @@ export default function CourseEditor() {
 
   return (
     <div className="max-w-4xl mx-auto">
+      {showFeedback && id && (
+        <FeedbackModal
+          courseId={id}
+          courseTitle={content?.outline?.title || course?.topic}
+          onClose={() => setShowFeedback(false)}
+        />
+      )}
       <div className="flex justify-between items-center mb-6">
         <Link to="/dashboard" className="flex items-center text-gray-500 hover:text-gray-900 transition-colors">
           <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard

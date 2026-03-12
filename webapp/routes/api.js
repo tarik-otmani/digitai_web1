@@ -15,6 +15,7 @@ import { buildCoursePdf, buildExamPdf } from '../lib/pdfGenerator.js';
 import * as userStore from '../lib/userStore.js';
 import * as usageStore from '../lib/usageStore.js';
 import * as settingsStore from '../lib/settingsStore.js';
+import * as feedbackStore from '../lib/feedbackStore.js';
 import { hashPassword, verifyPassword, signToken, verifyToken } from '../lib/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -722,6 +723,40 @@ apiRouter.get('/usage/me', authenticate, async (req, res) => {
   try {
     const data = await settingsStore.getUserTokenStats(req.user.id);
     res.json({ success: true, ...data });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ——— Course feedback ———
+apiRouter.post('/courses/:id/feedback', authenticate, async (req, res) => {
+  try {
+    const course = await store.getCourse(req.params.id, req.user.id);
+    if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
+    const { rating, comment } = req.body || {};
+    const r = parseInt(rating, 10);
+    if (!r || r < 1 || r > 5) return res.status(400).json({ success: false, error: 'rating must be 1–5' });
+    const fb = await feedbackStore.upsertFeedback(req.params.id, req.user.id, r, comment || '');
+    res.json({ success: true, feedback: fb });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+apiRouter.get('/courses/:id/feedback', authenticate, async (req, res) => {
+  try {
+    const fb = await feedbackStore.getFeedback(req.params.id, req.user.id);
+    res.json({ success: true, feedback: fb });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ——— Admin: feedback stats ———
+apiRouter.get('/admin/feedback-stats', authenticateAdmin, async (req, res) => {
+  try {
+    const stats = await feedbackStore.getAdminFeedbackStats();
+    res.json({ success: true, ...stats });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
