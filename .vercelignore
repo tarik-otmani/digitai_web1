@@ -1,0 +1,6 @@
+webapp/data
+webapp/uploads
+webapp/.env
+new-frontend/node_modules
+.git
+*.log
