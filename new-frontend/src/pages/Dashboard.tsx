@@ -1,23 +1,27 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Upload, FileText, ArrowRight, MoreVertical, Clock, Download, Trash2, Eye, DollarSign } from 'lucide-react';
+import { Plus, Upload, FileText, ArrowRight, Clock, Download, Trash2, Eye, CreditCard } from 'lucide-react';
 import clsx from 'clsx';
-import { getCourses, getExams, deleteCourse, deleteExam, getUsageMe, type Course, type Exam } from '../api';
+import { getCourses, getExams, deleteCourse, deleteExam, getBillingMe, type Course, type Exam } from '../api';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Dashboard() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [estimatedCost, setEstimatedCost] = useState<number | null>(null);
+  const [coursesThisMonth, setCoursesThisMonth] = useState<number | null>(null);
+  const [coursesQuota, setCoursesQuota] = useState<number | null>(null);
+  const { user } = useAuth();
 
   const load = async () => {
     setLoading(true);
     try {
-      const [c, e, usage] = await Promise.all([getCourses(), getExams(), getUsageMe()]);
+      const [c, e, billing] = await Promise.all([getCourses(), getExams(), getBillingMe()]);
       setCourses(c);
       setExams(e);
-      setEstimatedCost(usage.totals?.estimatedCostUsd ?? 0);
+      setCoursesThisMonth(billing.usage?.coursesThisMonth ?? 0);
+      setCoursesQuota(billing.usage?.coursesQuota ?? null);
     } catch (err) {
       console.error(err);
     } finally {
@@ -80,18 +84,18 @@ export default function Dashboard() {
           <p className="text-gray-500 mt-1">Welcome back. Manage your courses and exams.</p>
         </div>
         <div className="flex items-center gap-3">
-          {/* AI cost pill */}
+          {/* Billing quota pill */}
           <Link
-            to="/settings"
-            title="My AI usage cost — click for details"
-            className="flex items-center gap-1.5 px-3 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm font-medium hover:bg-green-100 transition-colors"
+            to="/billing"
+            title="Voir mon forfait"
+            className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-sm font-medium hover:bg-indigo-100 transition-colors"
           >
-            <DollarSign className="w-4 h-4" />
-            {estimatedCost === null
+            <CreditCard className="w-4 h-4" />
+            {coursesThisMonth === null
               ? '…'
-              : estimatedCost < 0.001
-              ? '<$0.001'
-              : `$${estimatedCost.toFixed(4)}`}
+              : coursesQuota === null
+              ? `${coursesThisMonth} cours`
+              : `${coursesThisMonth} / ${coursesQuota} cours`}
           </Link>
           <Link
             to="/generate-course"

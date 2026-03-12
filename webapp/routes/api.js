@@ -16,6 +16,7 @@ import * as userStore from '../lib/userStore.js';
 import * as usageStore from '../lib/usageStore.js';
 import * as settingsStore from '../lib/settingsStore.js';
 import * as feedbackStore from '../lib/feedbackStore.js';
+import * as billingStore from '../lib/billingStore.js';
 import { hashPassword, verifyPassword, signToken, verifyToken } from '../lib/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -667,6 +668,7 @@ apiRouter.get('/admin/users', authenticateAdmin, async (req, res) => {
       name: u.name,
       role: u.role || 'user',
       active: u.active !== false,
+      plan: u.plan || 'free',
       timecreated: u.timecreated,
       coursesCount: courseCountByUser.get(u.id) || 0,
       examsCount: examCountByUser.get(u.id) || 0,
@@ -757,6 +759,31 @@ apiRouter.get('/admin/feedback-stats', authenticateAdmin, async (req, res) => {
   try {
     const stats = await feedbackStore.getAdminFeedbackStats();
     res.json({ success: true, ...stats });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ——— User: billing / plan ———
+apiRouter.get('/billing/me', authenticate, async (req, res) => {
+  try {
+    const billing = await billingStore.getUserBilling(req.user.id);
+    res.json({ success: true, ...billing });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ——— Admin: update user plan ———
+apiRouter.patch('/admin/users/:id/plan', authenticateAdmin, async (req, res) => {
+  try {
+    const { plan } = req.body || {};
+    const validPlans = ['free', 'creator', 'pro', 'institution'];
+    if (!plan || !validPlans.includes(plan)) {
+      return res.status(400).json({ success: false, error: `plan must be one of: ${validPlans.join(', ')}` });
+    }
+    const user = await userStore.updateUser(req.params.id, { plan });
+    res.json({ success: true, user: { id: user.id, email: user.email, name: user.name, role: user.role || 'user', active: user.active !== false, plan: user.plan || 'free' } });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }

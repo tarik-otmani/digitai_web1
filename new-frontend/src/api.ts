@@ -287,6 +287,7 @@ export interface AdminUser {
   name: string;
   role: string;
   active: boolean;
+  plan?: string;
   timecreated?: number;
   coursesCount: number;
   examsCount: number;
@@ -370,4 +371,38 @@ export async function getCourseFeedback(courseId: string): Promise<{ success: bo
 
 export async function getAdminFeedbackStats(): Promise<{ success: boolean } & FeedbackStats> {
   return request('/admin/feedback-stats');
+}
+
+// ——— Billing ———
+export interface PlanInfo {
+  id: string;
+  name: string;
+  price: string;
+  features: string[];
+  color: string;
+}
+
+export interface BillingUsage {
+  coursesThisMonth: number;
+  questionsThisMonth: number;
+  coursesQuota: number | null;    // null = unlimited
+  questionsQuota: number | null;
+}
+
+export interface BillingData {
+  planId: string;
+  plan: PlanInfo;
+  usage: BillingUsage;
+  resetDate: string;
+}
+
+export async function getBillingMe(): Promise<{ success: boolean } & BillingData> {
+  return request('/billing/me');
+}
+
+export async function patchAdminUserPlan(
+  userId: string,
+  plan: string
+): Promise<{ success: boolean; user: AdminUser }> {
+  return request(`/admin/users/${userId}/plan`, { method: 'PATCH', body: { plan } });
 }

@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import {
   Users, BookOpen, FileText, Zap, RefreshCw, ToggleLeft, ToggleRight,
-  Shield, User as UserIcon, Key, Save, Eye, EyeOff, DollarSign, Star,
+  Shield, User as UserIcon, Key, Save, Eye, EyeOff, DollarSign, Star, CreditCard,
 } from 'lucide-react';
 import {
   getAdminStats, getAdminUsers, patchAdminUser,
   getAdminGeminiKey, postAdminGeminiKey,
-  getAdminFeedbackStats,
+  getAdminFeedbackStats, patchAdminUserPlan,
   type AdminStats as AdminStatsType, type AdminUser, type FeedbackStats,
 } from '../api';
 
@@ -125,6 +125,7 @@ export default function AdminDashboard() {
   const [feedbackStats, setFeedbackStats] = useState<FeedbackStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
@@ -153,6 +154,18 @@ export default function AdminDashboard() {
       alert((err as Error).message);
     } finally {
       setTogglingId(null);
+    }
+  };
+
+  const handleChangePlan = async (userId: string, newPlan: string) => {
+    setChangingPlanId(userId);
+    try {
+      const res = await patchAdminUserPlan(userId, newPlan);
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, plan: res.user.plan } : u)));
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setChangingPlanId(null);
     }
   };
 
@@ -233,6 +246,7 @@ export default function AdminDashboard() {
                 <th className="px-5 py-3 font-medium">Email</th>
                 <th className="px-5 py-3 font-medium">Name</th>
                 <th className="px-5 py-3 font-medium">Role</th>
+                <th className="px-5 py-3 font-medium">Plan</th>
                 <th className="px-5 py-3 font-medium text-right">Courses</th>
                 <th className="px-5 py-3 font-medium text-right">Exams</th>
                 <th className="px-5 py-3 font-medium text-right">
@@ -256,6 +270,25 @@ export default function AdminDashboard() {
                     }`}>
                       {u.role === 'admin' ? <><Shield className="w-3 h-3" /> Admin</> : <><UserIcon className="w-3 h-3" /> User</>}
                     </span>
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-1">
+                      <CreditCard className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <select
+                        value={u.plan || 'free'}
+                        disabled={changingPlanId === u.id}
+                        onChange={(e) => handleChangePlan(u.id, e.target.value)}
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:border-indigo-400 outline-none cursor-pointer disabled:opacity-50"
+                      >
+                        <option value="free">Free</option>
+                        <option value="creator">Creator</option>
+                        <option value="pro">Pro</option>
+                        <option value="institution">Institution</option>
+                      </select>
+                      {changingPlanId === u.id && (
+                        <span className="inline-block w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                      )}
+                    </div>
                   </td>
                   <td className="px-5 py-3 text-right text-gray-600">{u.coursesCount}</td>
                   <td className="px-5 py-3 text-right text-gray-600">{u.examsCount}</td>

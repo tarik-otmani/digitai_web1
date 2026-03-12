@@ -12,6 +12,7 @@ import GenerateExam from './pages/GenerateExam';
 import UploadCourse from './pages/UploadCourse';
 import ExportCourse from './pages/ExportCourse';
 import Settings from './pages/Settings';
+import Billing from './pages/Billing';
 import PreviewCourse from './pages/PreviewCourse';
 import PreviewExam from './pages/PreviewExam';
 import CoursesList from './pages/CoursesList';
@@ -66,7 +67,8 @@ export default function App() {
                 <Route path="/generate-exam" element={<GenerateExam />} />
                 <Route path="/upload-course" element={<UploadCourse />} />
                 <Route path="/export-course" element={<ExportCourse />} />
-                <Route path="/settings" element={<Settings />} />
+                <Route path="/settings" element={<Billing />} />
+                <Route path="/billing" element={<Billing />} />
                 <Route path="/course/:id" element={<PreviewCourse />} />
                 <Route path="/exam/:id" element={<PreviewExam />} />
                 <Route path="/courses" element={<CoursesList />} />

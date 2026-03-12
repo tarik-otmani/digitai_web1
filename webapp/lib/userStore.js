@@ -59,7 +59,7 @@ export async function addUser(user) {
 }
 
 export async function updateUser(id, updates) {
-  const allowed = ['name', 'email', 'password', 'role', 'active', 'timemodified'];
+  const allowed = ['name', 'email', 'password', 'role', 'active', 'plan', 'timemodified'];
   const record = { timemodified: Date.now() };
   for (const key of allowed) {
     if (updates[key] !== undefined) record[key] = updates[key];
