@@ -250,30 +250,41 @@ export default function LandingPage() {
             </motion.p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-4 gap-6 max-w-6xl mx-auto">
             {[
               {
-                name: "Starter",
+                name: "Free",
                 price: "Free",
+                badge: "Objectif: acquisition",
+                badgeColor: "text-indigo-500",
                 description: "Perfect for trying out DigitAI",
-                features: ["3 AI Course Generations/mo", "Basic Exam Creation", "PDF Export", "Community Support"],
+                features: ["1 cours", "10 questions examen", "watermark"],
                 cta: "Get Started",
                 popular: false
               },
               {
-                name: "Pro",
-                price: "$29",
-                period: "/month",
-                description: "For serious educators and creators",
-                features: ["Unlimited Course Generation", "Advanced Exam Customization", "SCORM & HTML Export", "Priority Support", "Analytics Dashboard"],
-                cta: "Start Pro Trial",
+                name: "Creator",
+                price: "$15",
+                period: "/mois",
+                description: "For content creators",
+                features: ["20 cours / mois", "50 questions examen", "export PDF"],
+                cta: "Get Started",
                 popular: true
               },
               {
-                name: "Institution",
-                price: "Custom",
+                name: "Pro",
+                price: "$29",
+                period: "/mois",
+                description: "For professionals",
+                features: ["cours illimités", "questions illimitées", "export LMS"],
+                cta: "Get Started",
+                popular: false
+              },
+              {
+                name: "Institutions",
+                price: "sur demande",
                 description: "For schools and universities",
-                features: ["Unlimited Users", "LMS Integration", "Custom Branding", "Dedicated Account Manager", "SSO & Advanced Security"],
+                features: ["génération massive", "API", "LMS integration"],
                 cta: "Contact Sales",
                 popular: false
               }
@@ -292,12 +303,15 @@ export default function LandingPage() {
                   </div>
                 )}
                 <div className="mb-8">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">{plan.name}</h3>
+                  <h3 className="text-xl font-bold text-gray-900 mb-1">{plan.name}</h3>
+                  {'badge' in plan && plan.badge && (
+                    <p className={`text-xs font-semibold mb-2 ${'badgeColor' in plan ? plan.badgeColor : ''}`}>{plan.badge}</p>
+                  )}
                   <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-bold text-gray-900 tracking-tight">{plan.price}</span>
+                    <span className={`font-bold text-gray-900 tracking-tight ${plan.price === 'sur demande' ? 'text-2xl' : 'text-4xl'}`}>{plan.price}</span>
                     {plan.period && <span className="text-gray-500 font-medium">{plan.period}</span>}
                   </div>
-                  <p className="text-gray-500 mt-4 leading-relaxed">{plan.description}</p>
+                  <p className="text-gray-500 mt-3 leading-relaxed text-sm">{plan.description}</p>
                 </div>
                 <ul className="space-y-4 mb-8 flex-1">
                   {plan.features.map((feature, i) => (
