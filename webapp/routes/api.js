@@ -175,7 +175,11 @@ apiRouter.patch('/courses/:id', authenticate, async (req, res) => {
   }
 });
 
+<<<<<<< HEAD
 apiRouter.post('/courses/outline', authenticate, requireCourseCreation, async (req, res) => {
+=======
+apiRouter.post('/courses/outline', authenticate, async (req, res) => {
+>>>>>>> 4fc0dcc05f58b336851d358692253ad91081dfeb
   try {
     const { topic, keywords, level, tone } = req.body || {};
     if (!topic) return res.status(400).json({ success: false, error: 'topic required' });
@@ -193,7 +197,10 @@ apiRouter.post('/courses/outline', authenticate, requireCourseCreation, async (r
       status: 'outline_generated',
       outline_json: JSON.stringify(outline),
     });
+<<<<<<< HEAD
     await trackUsage(req.user.id, 'course');
+=======
+>>>>>>> 4fc0dcc05f58b336851d358692253ad91081dfeb
     res.json({
       success: true,
       recordid: course.id,
@@ -321,7 +328,11 @@ apiRouter.post('/courses/generate', authenticate, async (req, res) => {
   }
 });
 
+<<<<<<< HEAD
 apiRouter.post('/courses/upload', authenticate, requireCourseCreation, upload.single('file'), async (req, res) => {
+=======
+apiRouter.post('/courses/upload', authenticate, upload.single('file'), async (req, res) => {
+>>>>>>> 4fc0dcc05f58b336851d358692253ad91081dfeb
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
     const suggestedTitle = req.body?.title || req.file.originalname?.replace(/\.[^.]+$/, '') || 'Uploaded course';
@@ -342,7 +353,10 @@ apiRouter.post('/courses/upload', authenticate, requireCourseCreation, upload.si
       outline_json: JSON.stringify(outline),
       content_json: JSON.stringify(contentData),
     });
+<<<<<<< HEAD
     await trackUsage(req.user.id, 'course');
+=======
+>>>>>>> 4fc0dcc05f58b336851d358692253ad91081dfeb
     res.json({
       success: true,
       recordid: course.id,
@@ -401,7 +415,11 @@ apiRouter.post('/courses/:id/regenerate-section', authenticate, async (req, res)
 });
 
 // Export course as PDF.
+<<<<<<< HEAD
 apiRouter.get('/courses/:id/export-pdf', authenticate, requirePdfExport, async (req, res) => {
+=======
+apiRouter.get('/courses/:id/export-pdf', authenticate, async (req, res) => {
+>>>>>>> 4fc0dcc05f58b336851d358692253ad91081dfeb
   try {
     const course = await store.getCourse(req.params.id, req.user.id);
     if (!course) return res.status(404).json({ success: false, error: 'Course not found' });
@@ -441,7 +459,11 @@ apiRouter.get('/exams/:id', authenticate, async (req, res) => {
   }
 });
 
+<<<<<<< HEAD
 apiRouter.post('/exams/generate', authenticate, requireExamCreation, async (req, res) => {
+=======
+apiRouter.post('/exams/generate', authenticate, async (req, res) => {
+>>>>>>> 4fc0dcc05f58b336851d358692253ad91081dfeb
   try {
     const { course_ref_id, num_questions, difficulty, pct_mcq, pct_truefalse, pct_shortanswer, pct_essay, example_questions } = req.body || {};
     if (!course_ref_id) return res.status(400).json({ success: false, error: 'course_ref_id required' });
@@ -480,7 +502,10 @@ apiRouter.post('/exams/generate', authenticate, requireExamCreation, async (req,
       questions_json: questions,
     });
     console.log(`Generated exam ${exam.id} for course ${course_ref_id}`);
+<<<<<<< HEAD
     await trackUsage(req.user.id, 'exam');
+=======
+>>>>>>> 4fc0dcc05f58b336851d358692253ad91081dfeb
     res.json({
       success: true,
       recordid: exam.id,
@@ -557,7 +582,11 @@ apiRouter.post('/exams/:id/regenerate-question', authenticate, async (req, res) 
   }
 });
 
+<<<<<<< HEAD
 apiRouter.get('/exams/:id/export-pdf', authenticate, requirePdfExport, async (req, res) => {
+=======
+apiRouter.get('/exams/:id/export-pdf', authenticate, async (req, res) => {
+>>>>>>> 4fc0dcc05f58b336851d358692253ad91081dfeb
   try {
     const exam = await store.getExam(req.params.id, req.user.id);
     if (!exam) return res.status(404).json({ success: false, error: 'Exam not found' });
@@ -731,6 +760,7 @@ apiRouter.get('/usage/me', authenticate, async (req, res) => {
     res.status(500).json({ success: false, error: e.message });
   }
 });
+<<<<<<< HEAD
 
 // ——— Subscription Plans ———
 apiRouter.get('/subscription/plans', async (req, res) => {
@@ -792,3 +822,5 @@ apiRouter.post('/subscription/cancel', authenticate, async (req, res) => {
     res.status(500).json({ success: false, error: e.message });
   }
 });
+=======
+>>>>>>> 4fc0dcc05f58b336851d358692253ad91081dfeb
